@@ -39,30 +39,34 @@ typedef struct segment_list {
     segment_item_t *item;
 } segment_list_t;
 
-typedef struct bandwidth_list {
+typedef struct variant {
     int cur_index;
     segment_list_t seg_list;
-} bandwidth_list_t;
+} hls_variant_t;
 
 typedef struct hls_playlist {
     int is_variant;
     int cur_index;
-    bandwidth_list_t bw_list;
-} dthls_playlist_t;
+} hls_playlist_t;
+
+typedef struct hls_m3u {
+    char *uri;
+    hls_playlist_t playlists;
+    hls_variant_t variants;
+} hls_m3u_t;
+
 
 typedef struct hls_ctrl {
     hls_status_t state;
-} dthls_ctrl_t;
+} hls_ctrl_t;
 
 typedef struct hls_session {
     char *uri;
     int is_variant;
     int is_live;
-
     dt_buffer_t cache;
-
-    dthls_playlist_t play_list;
-    dthls_ctrl_t ctl;
+    hls_m3u_t m3u;
+    hls_ctrl_t ctrl;
 } dthls_session_t;
 
 #endif

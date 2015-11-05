@@ -18,6 +18,13 @@
 
 #define TAG "HLS-SESSION"
 
+static int update_playlist(dthls_session_t *session)
+{
+    hls_m3u_t *pm3u = &session->m3u;
+    pm3u->uri = session->uri;
+    return dtm3u_get(pm3u);
+}
+
 int dthls_session_open(dthls_session_t *session, const char *uri)
 {
     int ret = DTHLS_ERROR_NONE;
@@ -29,6 +36,10 @@ int dthls_session_open(dthls_session_t *session, const char *uri)
         dt_info(TAG, "hls cache init failed \n");
         return ret;
     }
+
+    // parse m3u8
+    ret = update_playlist(session);
+
     dt_info(TAG, "hls session open success \n");
     return ret;
 }

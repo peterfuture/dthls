@@ -1,7 +1,7 @@
 /*
  * =====================================================================================
  *
- *    Filename   :  hls_api.c
+ *    Filename   :  dthls_api.c
  *    Description:  hls process flow
  *    Version    :  1.0
  *    Created    :  2015年10月21日 11时13分18秒
@@ -14,17 +14,19 @@
  * =====================================================================================
  */
 
-#include "hls_priv.h"
+#include "dthls_priv.h"
 
-int hls_init(void **priv, const char *uri)
+#define TAG "HLS-API"
+
+int dthls_init(void **priv, const char *uri)
 {
-    int ret = HLS_ERROR_NONE;
+    int ret = DTHLS_ERROR_NONE;
     if (!uri || strlen(uri) < 2) {
-        HLS_LOG("invalid url, quit \n");
+        dt_info(TAG, "invalid url, quit \n");
         return -1;
     }
-    hls_session_t *session = (hls_session_t*)malloc(sizeof(hls_session_t));
-    ret = hls_session_open(session, uri);
+    dthls_session_t *session = (dthls_session_t*)malloc(sizeof(dthls_session_t));
+    ret = dthls_session_open(session, uri);
     if (ret < 0) {
         return ret;
     }
@@ -32,8 +34,8 @@ int hls_init(void **priv, const char *uri)
     return 0;
 }
 
-int hls_stop(void *priv)
+int dthls_stop(void *priv)
 {
-    hls_session_t *session = (hls_session_t *)priv;
-    return hls_session_close(session);
+    dthls_session_t *session = (dthls_session_t *)priv;
+    return dthls_session_close(session);
 }

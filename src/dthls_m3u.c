@@ -1,16 +1,25 @@
 /*
  * =====================================================================================
  *
- *    Filename   :  hls_log.h
- *    Description:
+ *    Filename   :  hls_m3u.c
+ *    Description:  download-parser m3u
  *    Version    :  1.0
- *    Created    :  2015年10月29日 13时40分38秒
+ *    Created    :  2015年10月21日 11时11分14秒
  *    Revision   :  none
  *    Compiler   :  gcc
- *    Author     :  peter-s (), peter_future@outlook.com
+ *    Author     :  peter-s
+ *    Email      :  peter_future@outlook.com
  *    Company    :  dt
  *
  * =====================================================================================
  */
 
-#define HLS_LOG printf
+int dtm3u_download()
+{
+    return 0;
+}
+
+int dtm3u_parse()
+{
+    return 0;
+}

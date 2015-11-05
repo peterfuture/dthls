@@ -1,25 +1,17 @@
 /*
  * =====================================================================================
  *
- *    Filename   :  hls_m3u.c
- *    Description:  download-parser m3u
+ *    Filename   :  dthls_api.h
+ *    Description:
  *    Version    :  1.0
- *    Created    :  2015年10月21日 11时11分14秒
+ *    Created    :  2015年10月27日 20时43分45秒
  *    Revision   :  none
  *    Compiler   :  gcc
- *    Author     :  peter-s
- *    Email      :  peter_future@outlook.com
+ *    Author     :  peter-s (), peter_future@outlook.com
  *    Company    :  dt
  *
  * =====================================================================================
  */
 
-int m3u_download()
-{
-    return 0;
-}
-
-int m3u_parse()
-{
-    return 0;
-}
+int dthls_init(void **priv, const char *uri);
+int dthls_stop(void *priv);

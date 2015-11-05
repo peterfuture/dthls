@@ -1,7 +1,7 @@
 /*
  * =====================================================================================
  *
- *    Filename   :  hls_priv.h
+ *    Filename   :  dthls_priv.h
  *    Description:
  *    Version    :  1.0
  *    Created    :  2015年10月27日 11时17分38秒
@@ -13,10 +13,16 @@
  * =====================================================================================
  */
 
-#include "hls_macro.h"
-#include "hls_buffer.h"
-#include "hls_lock.h"
-#include "hls_log.h"
+#ifndef DTHLS_PRIV_H
+#define DTHLS_PRIV_H
+
+#include "dt_macro.h"
+#include "dt_buffer.h"
+#include "dt_lock.h"
+#include "dt_log.h"
+
+#include "dthls_error.h"
+#include "dthls_macro.h"
 
 typedef enum hls_state {
     HLS_MOD_UNINITED,
@@ -42,19 +48,21 @@ typedef struct hls_playlist {
     int is_variant;
     int cur_index;
     bandwidth_list_t bw_list;
-} hls_playlist_t;
+} dthls_playlist_t;
 
 typedef struct hls_ctrl {
     hls_status_t state;
-} hls_ctrl_t;
+} dthls_ctrl_t;
 
 typedef struct hls_session {
     char *uri;
     int is_variant;
     int is_live;
 
-    hls_buffer_t cache;
+    dt_buffer_t cache;
 
-    hls_playlist_t play_list;
-    hls_ctrl_t ctl;
-} hls_session_t;
+    dthls_playlist_t play_list;
+    dthls_ctrl_t ctl;
+} dthls_session_t;
+
+#endif

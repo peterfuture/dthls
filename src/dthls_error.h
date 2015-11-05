@@ -1,10 +1,10 @@
 /*
  * =====================================================================================
  *
- *    Filename   :  hls_api.h
+ *    Filename   :  hls_error.h
  *    Description:
  *    Version    :  1.0
- *    Created    :  2015年10月27日 20时43分45秒
+ *    Created    :  2015年11月05日 15时22分51秒
  *    Revision   :  none
  *    Compiler   :  gcc
  *    Author     :  peter-s (), peter_future@outlook.com
@@ -13,5 +13,11 @@
  * =====================================================================================
  */
 
-int hls_init(void **priv, const char *uri);
-int hls_stop(void *priv);
+#ifndef DTHLS_ERROR_H
+#define DTHLS_ERROR_H
+
+#define DTHLS_ERROR_UNKOWN -1
+#define DTHLS_ERROR_NONE 0
+
+
+#endif

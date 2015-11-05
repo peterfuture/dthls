@@ -1,12 +1,14 @@
-#include "hls_macro.h"
-#include "hls_buffer.h"
-#include "hls_log.h"
+#include "dt_buffer.h"
+#include "dt_log.h"
 
 #include "stdlib.h"
 #include "stdint.h"
 #include "string.h"
 
-int hls_buf_init(hls_buffer_t * dbt, int size)
+#define TAG "DT-BUF"
+/*buffer ops*/
+
+int dtbuf_init(dt_buffer_t * dbt, int size)
 {
     uint8_t *buffer = (uint8_t *) malloc(size);
     if (!buffer) {
@@ -17,32 +19,32 @@ int hls_buf_init(hls_buffer_t * dbt, int size)
     dbt->size = size;
     dbt->level = 0;
     dbt->rd_ptr = dbt->wr_ptr = dbt->data;
-    hls_lock_init(&dbt->mutex, NULL);
-    HLS_LOG("DTBUF INIT OK\n");
+    dt_lock_init(&dbt->mutex, NULL);
+    dt_info(TAG, "DTBUF INIT OK\n");
     return 0;
 }
 
-int hls_buf_reinit(hls_buffer_t * dbt)
+int dtbuf_reinit(dt_buffer_t * dbt)
 {
-    hls_lock(&dbt->mutex);
+    dt_lock(&dbt->mutex);
     dbt->level = 0;
     dbt->rd_ptr = dbt->wr_ptr = dbt->data;
-    hls_unlock(&dbt->mutex);
+    dt_unlock(&dbt->mutex);
     return 0;
 }
 
-int hls_buf_release(hls_buffer_t * dbt)
+int dtbuf_release(dt_buffer_t * dbt)
 {
-    hls_lock(&dbt->mutex);
+    dt_lock(&dbt->mutex);
     if (dbt->data) {
         free(dbt->data);
     }
     dbt->size = 0;
-    hls_unlock(&dbt->mutex);
+    dt_unlock(&dbt->mutex);
     return 0;
 }
 
-static int buf_empty(hls_buffer_t * dbt)
+static int dtbuf_empty(dt_buffer_t * dbt)
 {
     //no need to lock, will lock uplevel
     int ret = -1;
@@ -54,7 +56,7 @@ static int buf_empty(hls_buffer_t * dbt)
     return ret;
 }
 
-static int buf_full(hls_buffer_t * dbt)
+static int dtbuf_full(dt_buffer_t * dbt)
 {
     //no need to lock, will lock uplevel
     int ret = -1;
@@ -66,29 +68,29 @@ static int buf_full(hls_buffer_t * dbt)
     return ret;
 }
 
-int hls_buf_space(hls_buffer_t * dbt)
+int dtbuf_space(dt_buffer_t * dbt)
 {
     int space = dbt->size - dbt->level;
     return space;
 }
 
-int hls_buf_level(hls_buffer_t * dbt)
+int dtbuf_level(dt_buffer_t * dbt)
 {
     int lev = dbt->level;
     return lev;
 }
 
-int hls_buf_get(hls_buffer_t * dbt, uint8_t * out, int size)
+int dtbuf_get(dt_buffer_t * dbt, uint8_t * out, int size)
 {
-    hls_lock(&dbt->mutex);
+    dt_lock(&dbt->mutex);
     int len = -1;
-    len = buf_empty(dbt);
+    len = dtbuf_empty(dbt);
     if (len == 1) {
         len = 0;
         goto QUIT;              //get nothing
     }
 
-    len = HLS_MIN(dbt->level, size);
+    len = MIN(dbt->level, size);
     if (dbt->wr_ptr > dbt->rd_ptr) {
         memcpy(out, dbt->rd_ptr, len);
         dbt->rd_ptr += len;
@@ -110,20 +112,20 @@ int hls_buf_get(hls_buffer_t * dbt, uint8_t * out, int size)
         goto QUIT;
     }
 QUIT:
-    hls_unlock(&dbt->mutex);
+    dt_unlock(&dbt->mutex);
     return len;
 }
 
-int hls_buf_put(hls_buffer_t * dbt, uint8_t * in, int size)
+int dtbuf_put(dt_buffer_t * dbt, uint8_t * in, int size)
 {
-    hls_lock(&dbt->mutex);
-    int len = buf_full(dbt);
+    dt_lock(&dbt->mutex);
+    int len = dtbuf_full(dbt);
     if (len == 1) {
         len = 0;
         goto QUIT;              // no space to write
     }
 
-    len = HLS_MIN(dbt->size - dbt->level, size);
+    len = MIN(dbt->size - dbt->level, size);
     if (dbt->wr_ptr < dbt->rd_ptr) {
         memcpy(dbt->wr_ptr, in, len);
         dbt->wr_ptr += len;
@@ -145,6 +147,6 @@ int hls_buf_put(hls_buffer_t * dbt, uint8_t * in, int size)
         goto QUIT;
     }
 QUIT:
-    hls_unlock(&dbt->mutex);
+    dt_unlock(&dbt->mutex);
     return len;
 }

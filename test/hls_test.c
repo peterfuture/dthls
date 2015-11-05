@@ -14,7 +14,7 @@
  * =====================================================================================
  */
 #include <stdio.h>
-#include "hls_api.h"
+#include "dthls_api.h"
 
 int main(int argc, char **argv)
 {
@@ -22,8 +22,8 @@ int main(int argc, char **argv)
     printf("Enter HLS Unit Test\n");
     const char *uri = "http://devimages.apple.com/iphone/samples/bipbop/gear1/prog_index.m3u8";
     void *hls_ctx;
-    hls_init(&hls_ctx, uri);
-    hls_stop(hls_ctx);
+    dthls_init(&hls_ctx, uri);
+    dthls_stop(hls_ctx);
     printf("Exit HLS Unit Test\n");
     printf("===========================================\n");
 }

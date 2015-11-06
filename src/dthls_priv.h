@@ -51,6 +51,7 @@ typedef struct hls_playlist {
 
 typedef struct hls_m3u {
     char *uri;
+    char *location;
     int64_t filesize;
     char *content;
     hls_playlist_t playlists;

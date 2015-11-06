@@ -55,7 +55,7 @@ static int m3u_download(hls_m3u_t *m3u)
     }
     dt_info(TAG, "get filesize:%" PRId64 "\n", m3u->filesize);
     dtcurl_get_parameter(curl_ctx, KEY_CURL_GET_LOCATION, &m3u->location);
-    dt_info(TAG, "get location:%s \n", (!m3u->location)?m3u->uri:m3u->location);
+    dt_info(TAG, "get location:%s \n", (!m3u->location) ? m3u->uri : m3u->location);
     m3u->content = (unsigned char *)malloc((int)m3u->filesize);
     if (!m3u->content) {
         dt_info(TAG, "malloc m3u buffer failed \n");
@@ -81,10 +81,12 @@ static int m3u_download(hls_m3u_t *m3u)
 static int read_line(char *data, char *buf, int maxlen)
 {
     int off = 0;
-    while(off < maxlen && data[off] != '\n' && data[off] !='\0')
+    while (off < maxlen && data[off] != '\n' && data[off] != '\0') {
         off++;
-    if(off >= maxlen)
+    }
+    if (off >= maxlen) {
         return -1;
+    }
     memcpy(buf, data, off);
     dt_info(TAG, "read line:%s\n", buf);
     return off;
@@ -98,9 +100,8 @@ static int m3u_parse(hls_m3u_t *m3u)
     char *in = m3u->content;
     int insize = (int)m3u->filesize;
     int off = 0;
-    int len = read_line(in+off, line, sizeof(line));
-    if(len < 0)
-    {
+    int len = read_line(in + off, line, sizeof(line));
+    if (len < 0) {
         dt_info(TAG, "Error invalid header \n");
         return DTHLS_ERROR_UNKOWN;
     }
@@ -108,22 +109,22 @@ static int m3u_parse(hls_m3u_t *m3u)
         return DTHLS_ERROR_UNKOWN;
     }
     off += len;
-    while(1)
-    {
+    while (1) {
         memset(line, 0, sizeof(line));
-        len = read_line(in+off, line, sizeof(line));
-        if(len < 0)
+        len = read_line(in + off, line, sizeof(line));
+        if (len < 0) {
             break;
-        if(len == 0)
-        {
+        }
+        if (len == 0) {
             off += 1;
             continue;
         }
         off += len;
-        if(off >= insize)
+        if (off >= insize) {
             break;
+        }
     }
-    
+
     return 0;
 }
 

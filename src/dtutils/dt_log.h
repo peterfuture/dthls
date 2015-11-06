@@ -1,6 +1,9 @@
 #ifndef DT_LOG_H
 #define DT_LOG_H
 
+#include <stdio.h>
+#include <inttypes.h>
+
 #if ENABLE_ANDROID
 #include <android/log.h>
 

@@ -22,7 +22,7 @@ static int update_playlist(dthls_session_t *session)
 {
     hls_m3u_t *pm3u = &session->m3u;
     pm3u->uri = session->uri;
-    return dtm3u_get(pm3u);
+    return dtm3u_open(pm3u);
 }
 
 int dthls_session_open(dthls_session_t *session, const char *uri)

@@ -4,9 +4,9 @@
 
 #include <stdlib.h>
 
-static _node_t *get_node_link_nth(queue_t * qu, uint32_t n);
+static _node_t *get_node_link_nth(dt_queue_t * qu, uint32_t n);
 
-static void lock_queue(queue_t * qu)
+static void lock_queue(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return;
@@ -14,7 +14,7 @@ static void lock_queue(queue_t * qu)
     pthread_mutex_lock(&qu->mutex);
 }
 
-static void unlock_queue(queue_t * qu)
+static void unlock_queue(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return;
@@ -23,7 +23,7 @@ static void unlock_queue(queue_t * qu)
 }
 
 #if 0
-static int wakeup_on_queue(queue_t * qu)
+static int wakeup_on_queue(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return -1;
@@ -31,7 +31,7 @@ static int wakeup_on_queue(queue_t * qu)
     return pthread_cond_broadcast(&qu->cond);
 }
 
-int wait_on_queue(queue_t * qu)
+int wait_on_queue(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return -1;
@@ -43,7 +43,7 @@ int wait_on_queue(queue_t * qu)
 }
 
 /* timeout unit : millisecond */
-int wait_on_queue_timeout(queue_t * qu, int timeout)
+int wait_on_dt_queue_timeout(dt_queue_t * qu, int timeout)
 {
     if (unlikely(NULL == qu)) {
         return -1;
@@ -76,9 +76,9 @@ int wait_on_queue_timeout(queue_t * qu, int timeout)
  * @brief create a queue
  * return queue
  */
-queue_t *queue_new(void)
+dt_queue_t *dt_queue_new(void)
 {
-    queue_t *q = (queue_t *) malloc(sizeof(queue_t));
+    dt_queue_t *q = (dt_queue_t *) malloc(sizeof(dt_queue_t));
     q->head = q->tail = NULL;
     q->length = 0;
     pthread_mutex_init(&q->mutex, NULL);
@@ -89,7 +89,7 @@ queue_t *queue_new(void)
 /**
  * @brief delete a queue
  */
-void queue_free(queue_t * qu, free_func func)
+void dt_queue_free(dt_queue_t * qu, free_func func)
 {
     void *data;
 
@@ -97,7 +97,7 @@ void queue_free(queue_t * qu, free_func func)
         return;
     }
 
-    while ((data = queue_pop_tail(qu))) {
+    while ((data = dt_queue_pop_tail(qu))) {
         if (func) {
             func(data);
         }
@@ -110,7 +110,7 @@ void queue_free(queue_t * qu, free_func func)
     free(qu);
 }
 
-void queue_flush(queue_t * qu, free_func func)
+void dt_queue_flush(dt_queue_t * qu, free_func func)
 {
     void *data;
 
@@ -118,7 +118,7 @@ void queue_flush(queue_t * qu, free_func func)
         return;
     }
 
-    while ((data = queue_pop_tail(qu))) {
+    while ((data = dt_queue_pop_tail(qu))) {
         if (func) {
             func(data);
         }
@@ -129,7 +129,7 @@ void queue_flush(queue_t * qu, free_func func)
 /**
  * @brief get length of queue
  */
-uint32_t queue_length(queue_t * qu)
+uint32_t dt_queue_length(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return 0;
@@ -142,7 +142,7 @@ uint32_t queue_length(queue_t * qu)
  * @param qu    queue
  * @param data  node data
  */
-void queue_push_head(queue_t * qu, void *data)
+void dt_queue_push_head(dt_queue_t * qu, void *data)
 {
     _node_t *node = NULL;
 
@@ -173,7 +173,7 @@ void queue_push_head(queue_t * qu, void *data)
  * @param qu    queue
  * @param data  node data
  */
-void queue_push_tail(queue_t * qu, void *data)
+void dt_queue_push_tail(dt_queue_t * qu, void *data)
 {
     _node_t *node = NULL;
 
@@ -205,7 +205,7 @@ void queue_push_tail(queue_t * qu, void *data)
  * @param qu    queue
  * @param data  node data
  */
-void queue_push_nth(queue_t * qu, void *data, uint32_t n)
+void dt_queue_push_nth(dt_queue_t * qu, void *data, uint32_t n)
 {
     _node_t *node, *p;
 
@@ -216,11 +216,11 @@ void queue_push_nth(queue_t * qu, void *data, uint32_t n)
     lock_queue(qu);
     if (unlikely(n > qu->length)) {
         unlock_queue(qu);
-        return queue_push_tail(qu, data);
+        return dt_queue_push_tail(qu, data);
     }
     if (unlikely(n <= 1)) {
         unlock_queue(qu);
-        return queue_push_head(qu, data);
+        return dt_queue_push_head(qu, data);
     }
 
     node = (_node_t *) malloc(sizeof(_node_t));
@@ -244,7 +244,7 @@ void queue_push_nth(queue_t * qu, void *data, uint32_t n)
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_pop_head(queue_t * qu)
+void *dt_queue_pop_head(dt_queue_t * qu)
 {
     _node_t *p;
     void *data = NULL;
@@ -276,7 +276,7 @@ end:
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_pre_pop_head(queue_t * qu)
+void *dt_queue_pre_pop_head(dt_queue_t * qu)
 {
     _node_t *p;
     void *data = NULL;
@@ -297,7 +297,7 @@ end:
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_pop_tail(queue_t * qu)
+void *dt_queue_pop_tail(dt_queue_t * qu)
 {
     _node_t *p;
     void *data = NULL;
@@ -330,7 +330,7 @@ end:
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_pop_nth(queue_t * qu, uint32_t n)
+void *dt_queue_pop_nth(dt_queue_t * qu, uint32_t n)
 {
     _node_t *p, *q;
     void *data = NULL;
@@ -342,11 +342,11 @@ void *queue_pop_nth(queue_t * qu, uint32_t n)
 
     if (n > qu->length) {
         unlock_queue(qu);
-        return queue_pop_tail(qu);
+        return dt_queue_pop_tail(qu);
     }
     if (n <= 1) {
         unlock_queue(qu);
-        return queue_pop_head(qu);
+        return dt_queue_pop_head(qu);
     }
 
     p = get_node_link_nth(qu, n);
@@ -369,7 +369,7 @@ end:
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_peek_head(queue_t * qu)
+void *dt_queue_peek_head(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return NULL;
@@ -383,7 +383,7 @@ void *queue_peek_head(queue_t * qu)
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_peek_tail(queue_t * qu)
+void *dt_queue_peek_tail(dt_queue_t * qu)
 {
     if (unlikely(NULL == qu)) {
         return NULL;
@@ -397,7 +397,7 @@ void *queue_peek_tail(queue_t * qu)
  * @param qu    queue
  * @return  queue node data
  */
-void *queue_peek_nth(queue_t * qu, uint32_t n)
+void *dt_queue_peek_nth(dt_queue_t * qu, uint32_t n)
 {
     _node_t *p;
 
@@ -406,10 +406,10 @@ void *queue_peek_nth(queue_t * qu, uint32_t n)
     }
 
     if (n > qu->length) {
-        return queue_peek_tail(qu);
+        return dt_queue_peek_tail(qu);
     }
     if (n <= 1) {
-        return queue_peek_head(qu);
+        return dt_queue_peek_head(qu);
     }
 
     p = get_node_link_nth(qu, n);
@@ -417,7 +417,7 @@ void *queue_peek_nth(queue_t * qu, uint32_t n)
     return p->data;
 }
 
-static _node_t *get_node_link_nth(queue_t * qu, uint32_t n)
+static _node_t *get_node_link_nth(dt_queue_t * qu, uint32_t n)
 {
     _node_t *p = NULL;
 

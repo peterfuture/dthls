@@ -20,7 +20,8 @@ int main(int argc, char **argv)
 {
     printf("===========================================\n");
     printf("Enter HLS Unit Test\n");
-    const char *uri = "http://devimages.apple.com/iphone/samples/bipbop/gear1/prog_index.m3u8";
+    //const char *uri = "http://devimages.apple.com/iphone/samples/bipbop/gear1/prog_index.m3u8";
+    const char *uri = "http://devimages.apple.com/iphone/samples/bipbop/bipbopall.m3u8";
     void *hls_ctx;
     dthls_init(&hls_ctx, uri);
     dthls_stop(hls_ctx);

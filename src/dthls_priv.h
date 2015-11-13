@@ -24,40 +24,14 @@
 #include "dthls_error.h"
 #include "dthls_macro.h"
 
+#include "dthls_m3u.h"
+
 typedef enum hls_state {
     HLS_MOD_UNINITED,
     HLS_MOD_INITED,
     HLS_MOD_RUNNING,
     HLS_MOD_STOPED
 } hls_status_t;
-
-typedef struct segment_item {
-    char *uri;
-} segment_item_t;
-
-typedef struct segment_list {
-    segment_item_t *item;
-} segment_list_t;
-
-typedef struct variant {
-    int cur_index;
-    segment_list_t seg_list;
-} hls_variant_t;
-
-typedef struct hls_playlist {
-    int is_variant;
-    int cur_index;
-} hls_playlist_t;
-
-typedef struct hls_m3u {
-    char *uri;
-    char *location;
-    int64_t filesize;
-    char *content;
-    hls_playlist_t playlists;
-    hls_variant_t variants;
-    void *curl;
-} hls_m3u_t;
 
 typedef struct hls_ctrl {
     hls_status_t state;

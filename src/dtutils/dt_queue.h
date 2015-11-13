@@ -40,30 +40,30 @@ typedef struct {
     uint32_t length;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
-} queue_t;
+} dt_queue_t;
 
-queue_t *queue_new(void);
+dt_queue_t *dt_queue_new(void);
 
 typedef void (*free_func)(void *);
-void queue_free(queue_t * qu, free_func func);
-void queue_flush(queue_t * qu, free_func func);
+void dt_queue_free(dt_queue_t * qu, free_func func);
+void dt_queue_flush(dt_queue_t * qu, free_func func);
 
-int wait_on_queue(queue_t * qu);
-int wait_on_queue_timeout(queue_t * qu, int timeout);
+int wait_on_queue(dt_queue_t * qu);
+int wait_on_dt_queue_timeout(dt_queue_t * qu, int timeout);
 
-uint32_t queue_length(queue_t * qu);
+uint32_t dt_queue_length(dt_queue_t * qu);
 
-void queue_push_head(queue_t * qu, void *data);
-void queue_push_tail(queue_t * qu, void *data);
-void queue_push_nth(queue_t * qu, void *data, uint32_t n);
+void dt_queue_push_head(dt_queue_t * qu, void *data);
+void dt_queue_push_tail(dt_queue_t * qu, void *data);
+void dt_queue_push_nth(dt_queue_t * qu, void *data, uint32_t n);
 
-void *queue_pop_head(queue_t * qu);
-void *queue_pre_pop_head(queue_t * qu);
-void *queue_pop_tail(queue_t * qu);
-void *queue_pop_nth(queue_t * qu, uint32_t n);
+void *dt_queue_pop_head(dt_queue_t * qu);
+void *dt_queue_pre_pop_head(dt_queue_t * qu);
+void *dt_queue_pop_tail(dt_queue_t * qu);
+void *dt_queue_pop_nth(dt_queue_t * qu, uint32_t n);
 
-void *queue_peek_head(queue_t * qu);
-void *queue_peek_tail(queue_t * qu);
-void *queue_peek_nth(queue_t * qu, uint32_t n);
+void *dt_queue_peek_head(dt_queue_t * qu);
+void *dt_queue_peek_tail(dt_queue_t * qu);
+void *dt_queue_peek_nth(dt_queue_t * qu, uint32_t n);
 
 #endif

@@ -30,7 +30,9 @@
  * containing the next packet from this stream.
  */
 struct playlist {
-    char url[MAX_URL_SIZE];
+    char uri[MAX_URL_SIZE];
+
+    int64_t target_duration;
 };
 
 struct variant {
@@ -38,8 +40,7 @@ struct variant {
 
     /* every variant contains at least the main Media Playlist in index 0 */
     int n_playlists;
-    struct playlist **playlists;
-    dt_queue_t *queue_playlist;
+    dt_queue_t *queue_playlists;
     char audio_group[MAX_FIELD_LEN];
     char video_group[MAX_FIELD_LEN];
     char subtitles_group[MAX_FIELD_LEN];
@@ -52,11 +53,9 @@ typedef struct hls_m3u {
     char *content;
 
     int n_variants;
-    struct variant_t **variants;
     dt_queue_t *queue_variants;
     int n_playlists;
-    struct playlist **playlists;
-    dt_queue_t *queue_playlist;
+    dt_queue_t *queue_playlists;
     void *curl;
 } hls_m3u_t;
 

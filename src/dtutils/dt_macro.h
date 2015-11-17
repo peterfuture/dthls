@@ -46,4 +46,16 @@
 *************************************/
 #define VIDEO_EXTRADATA_SIZE   4096
 
+enum DTMediaType {
+    DTMEDIA_TYPE_UNKNOWN = -1,  ///< Usually treated as AVMEDIA_TYPE_DATA
+    DTMEDIA_TYPE_VIDEO,
+    DTMEDIA_TYPE_AUDIO,
+    DTMEDIA_TYPE_DATA,          ///< Opaque data information usually continuous
+    DTMEDIA_TYPE_SUBTITLE,
+    DTMEDIA_TYPE_ATTACHMENT,    ///< Opaque data information usually sparse
+    DTMEDIA_TYPE_NB
+};
+
+
+
 #endif

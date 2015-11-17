@@ -74,6 +74,9 @@ static struct playlist *new_playlist(hls_m3u_t *m3u, const char *uri, const char
     if (!pls) {
         return NULL;
     }
+    memset(pls, 0, sizeof(struct playlist));
+    pls->queue_segments = dt_queue_new();
+    pls->queue_renditions = dt_queue_new();
     dt_make_absolute_url(pls->uri, sizeof(pls->uri), base, uri);
     dt_queue_push_tail(m3u->queue_playlists, (void *)pls);
     m3u->n_playlists++;
@@ -103,14 +106,14 @@ static struct variant *new_variant(hls_m3u_t *m3u, struct variant_info *info,
     if (!var) {
         return NULL;
     }
-
+    memset(var, 0, sizeof(struct variant));
     if (info) {
         var->bandwidth = atoi(info->bandwidth);
         strcpy(var->audio_group, info->audio);
         strcpy(var->video_group, info->video);
         strcpy(var->subtitles_group, info->subtitles);
     }
-
+    var->queue_playlists = dt_queue_new();
     dt_queue_push_tail(m3u->queue_variants, var);
     m3u->n_variants++;
     dt_queue_push_tail(var->queue_playlists, pls);
@@ -318,6 +321,18 @@ static int ensure_playlist(hls_m3u_t *m3u, struct playlist **pls, const char *ur
     return 0;
 }
 
+static void debug_dump_playlist(struct playlist *pls)
+{
+    int i = 0;
+    dt_info(TAG, "uri:%s- segments num:%d \n", pls->uri, pls->n_segments);
+    for (i = 0; i < pls->n_segments; i++) {
+        struct segment *seg = dt_queue_peek_nth(pls->queue_segments, i);
+        if (seg) {
+            dt_info(TAG, "index:%d uri:%s \n", i, seg->url);
+        }
+    }
+}
+
 /*
  * para:
  * data:   store data to parse
@@ -347,16 +362,28 @@ static int read_line(char *data, int inlen, char *buf, int maxlen)
 static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
 {
     dt_info(TAG, "Enter parse m3u8 \n");
-    int ret;
-    char line[LINE_MAX_LENGTH];
+
+    int ret = 0, is_segment = 0, is_variant = 0;
+    int64_t duration = 0;
+    enum KeyType key_type = KEY_NONE;
+    uint8_t iv[16] = "";
+    int has_iv = 0;
+    char key[MAX_URL_SIZE] = "";
+    char line[MAX_URL_SIZE];
+    const char *ptr;
+    int close_in = 0;
+    int64_t seg_offset = 0;
+    int64_t seg_size = -1;
+    uint8_t *new_url = NULL;
+    struct variant_info variant_info;
+    char tmp_str[MAX_URL_SIZE];
+    struct segment *cur_init_section = NULL;
+
     char *in = m3u->content;
     int insize = (int)m3u->filesize;
     int off = 0;
-    int is_variant = 0;
-    struct variant_info variant_info;
 
 
-    char *ptr = NULL;
     int len = read_line(in, insize, line, sizeof(line));
     if (len < 0) {
         dt_info(TAG, "Error invalid header \n");
@@ -392,11 +419,11 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
             is_variant = 1;
             dt_info(TAG, "Get varant stream, bandwidth:%s \n", variant_info.bandwidth);
         } else if (dt_strstart(line, "#EXT-X-KEY:", &ptr)) {
-            ;// comming soon
+            continue;// comming soon
         } else if (dt_strstart(line, "#EXT-X-MEDIA:", &ptr)) {
             struct rendition_info info = {{0}};
             m3u_parse_rendition(line, &info);
-            //new_rendition(c, &info, url);
+            new_rendition(m3u, &info, url);
         } else if (dt_strstart(line, "#EXT-X-TARGETDURATION:", &ptr)) {
             ret = ensure_playlist(m3u, &pls, url);
             if (ret < 0) {
@@ -423,13 +450,21 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
             }
             dt_info(TAG, "Get playlist type:%lld\n", pls->type);
         } else if (dt_strstart(line, "#EXT-X-MAP:", &ptr)) {
+            continue;
         } else if (dt_strstart(line, "#EXT-X-ENDLIST:", &ptr)) {
             if (pls) {
                 pls->finished = 1;
             }
             dt_info(TAG, "Get ENDLIST TAG\n");
-        } else if (dt_strstart(line, "#EXT-X-EXTINF:", &ptr)) {
+        } else if (dt_strstart(line, "#EXTINF:", &ptr)) {
+            is_segment = 1;
+            duration = atof(ptr) * DTHLS_TIME_BASE;
         } else if (dt_strstart(line, "#EXT-X-BYTERANGE:", &ptr)) {
+            seg_size = atoi(ptr);
+            ptr = strchr(ptr, '@');
+            if (ptr) {
+                seg_offset = atoi(ptr + 1);
+            }
         } else if (dt_strstart(line, "#", &ptr)) {
             continue;
         } else if (line[0]) { // content
@@ -440,10 +475,73 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
                 }
                 is_variant = 0;
             }
+
+            if (is_segment) {
+                struct segment *seg;
+                if (!pls) {
+                    if (!new_playlist(m3u, url, NULL)) {
+                        ret = DTHLS_ERROR_UNKOWN;
+                        goto fail;
+                    }
+                    pls = dt_queue_peek_nth(m3u->queue_playlists, m3u->n_playlists - 1);
+                }
+                seg = malloc(sizeof(struct segment));
+                if (!seg) {
+                    ret = DTHLS_ERROR_UNKOWN;
+                    goto fail;
+                }
+                seg->duration = duration;
+                seg->key_type = key_type;
+                if (has_iv) {
+                    memcpy(seg->iv, iv, sizeof(iv));
+                } else {
+                    int seq = pls->start_seq_no + pls->n_segments;
+                    memset(seg->iv, 0, sizeof(seg->iv));
+                    ;//-fixme AV_WB32(seg->iv + 12, seq);
+                }
+
+                if (key_type != KEY_NONE) {
+                    dt_make_absolute_url(tmp_str, sizeof(tmp_str), url, key);
+                    seg->key = strdup(tmp_str);
+                    if (!seg->key) {
+                        free(seg);
+                        ret = DTHLS_ERROR_UNKOWN;
+                        goto fail;
+                    }
+                } else {
+                    seg->key = NULL;
+                }
+
+                dt_make_absolute_url(tmp_str, sizeof(tmp_str), url, line);
+                seg->url = strdup(tmp_str);
+                if (!seg->url) {
+                    free(seg->key);
+                    free(seg);
+                    ret = DTHLS_ERROR_UNKOWN;
+                    goto fail;
+                }
+                dt_queue_push_tail(pls->queue_segments, seg);
+                pls->n_segments++;
+                is_segment = 0;
+                seg->size = seg_size;
+                if (seg_size >= 0) {
+                    seg->url_offset = seg_offset;
+                    seg_offset += seg_size;
+                    seg_size = -1;
+                } else {
+                    seg->url_offset = 0;
+                    seg_offset = 0;
+                }
+                seg->init_section = cur_init_section;
+
+            }
+
         }
     }
 
-    dt_info(TAG, "variant:%d playlists:%d \n", m3u->n_variants, m3u->n_playlists);
+    if (pls) {
+        pls->last_load_time = dt_gettime();
+    }
 fail:
     return ret;
 }
@@ -463,8 +561,14 @@ static int m3u_update(hls_m3u_t *m3u)
             if (ret = m3u_parse(m3u, pls->uri, pls) < 0) {
                 goto fail;
             }
-            break;
         }
+    }
+
+    // debug
+    dt_info(TAG, "variant:%d playlists:%d \n", m3u->n_variants, m3u->n_playlists);
+    for (i = 0; i < m3u->n_playlists; i++) {
+        struct playlist *pls = dt_queue_peek_nth(m3u->queue_playlists, i);
+        debug_dump_playlist(pls);
     }
 fail:
     return 0;

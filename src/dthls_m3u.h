@@ -64,7 +64,7 @@ struct playlist {
     int64_t target_duration;
     int start_seq_no;
     int n_segments;
-    struct segment **segments;
+    dt_queue_t *queue_segments;
     int needed, cur_needed;
     int cur_seq_no;
     int64_t cur_seg_offset;

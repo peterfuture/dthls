@@ -16,7 +16,7 @@
 #ifndef DTHLS_M3U_H
 #define DTHLS_M3U_H
 
-#include "dt_queue.h"
+#include "dt_array.h"
 
 #define INITIAL_BUFFER_SIZE 32768
 #define MAX_FIELD_LEN 64
@@ -64,7 +64,7 @@ struct playlist {
     int64_t target_duration;
     int start_seq_no;
     int n_segments;
-    dt_queue_t *queue_segments;
+    struct segment **segments;
     int needed, cur_needed;
     int cur_seq_no;
     int64_t cur_seg_offset;
@@ -100,8 +100,7 @@ struct playlist {
      * with them, and variant main Media Playlists may have
      * multiple (playlist-less) renditions associated with them. */
     int n_renditions;
-    dt_queue_t *queue_renditions;
-
+    struct renditions **renditions;
     /* Media Initialization Sections (EXT-X-MAP) associated with this
      * playlist, if any. */
     int n_init_sections;
@@ -128,7 +127,7 @@ struct variant {
 
     /* every variant contains at least the main Media Playlist in index 0 */
     int n_playlists;
-    dt_queue_t *queue_playlists;
+    struct playlist **playlists;
     char audio_group[MAX_FIELD_LEN];
     char video_group[MAX_FIELD_LEN];
     char subtitles_group[MAX_FIELD_LEN];
@@ -139,13 +138,13 @@ typedef struct hls_m3u {
     char *location;
     int64_t filesize;
     char *content;
-
+    int64_t duration;
     int n_variants;
-    dt_queue_t *queue_variants;
+    struct variant **variants;
     int n_playlists;
-    dt_queue_t *queue_playlists;
+    struct playlist **playlists;
     int n_renditions;
-    dt_queue_t *queue_renditions;
+    struct rendition **renditions;
 
     // download handle
     void *curl;

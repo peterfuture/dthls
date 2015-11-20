@@ -13,5 +13,11 @@
  * =====================================================================================
  */
 
-int dthls_init(void **priv, const char *uri);
-int dthls_stop(void *priv);
+#include <stdint.h>
+
+int dthls_open(void **priv, const char *uri);
+int dthls_read(void *priv, char *buf, int size);
+int dthls_seek(void *priv, int64_t pos, int whence);
+int dthls_set_parameter(void *priv, int key, void *value);
+int dthls_get_parameter(void *priv, int key, void *value);
+int dthls_close(void *priv);

@@ -34,6 +34,7 @@ typedef enum hls_state {
 } hls_status_t;
 
 typedef struct hls_ctrl {
+    int request_quit;
     hls_status_t state;
 } hls_ctrl_t;
 
@@ -44,6 +45,8 @@ typedef struct hls_session {
     dt_buffer_t cache;
     hls_m3u_t m3u;
     hls_ctrl_t ctrl;
+
+    pthread_t download_pid;
 } dthls_session_t;
 
 #endif

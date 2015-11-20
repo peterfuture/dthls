@@ -18,7 +18,7 @@
 
 #define TAG "HLS-API"
 
-int dthls_init(void **priv, const char *uri)
+int dthls_open(void **priv, const char *uri)
 {
     int ret = DTHLS_ERROR_NONE;
     if (!uri || strlen(uri) < 2) {
@@ -34,7 +34,27 @@ int dthls_init(void **priv, const char *uri)
     return 0;
 }
 
-int dthls_stop(void *priv)
+int dthls_read(void *priv, char *buf, int size)
+{
+    return 0;
+}
+
+int dthls_seek(void *priv, int64_t pos, int whence)
+{
+    return 0;
+}
+
+int dthls_set_parameter(void *priv, int key, void *value)
+{
+    return 0;
+}
+
+int dthls_get_parameter(void *priv, int key, void *value)
+{
+    return 0;
+}
+
+int dthls_close(void *priv)
 {
     dthls_session_t *session = (dthls_session_t *)priv;
     return dthls_session_close(session);

@@ -75,11 +75,8 @@ static struct playlist *new_playlist(hls_m3u_t *m3u, const char *uri, const char
         return NULL;
     }
     memset(pls, 0, sizeof(struct playlist));
-    pls->queue_segments = dt_queue_new();
-    pls->queue_renditions = dt_queue_new();
     dt_make_absolute_url(pls->uri, sizeof(pls->uri), base, uri);
-    dt_queue_push_tail(m3u->queue_playlists, (void *)pls);
-    m3u->n_playlists++;
+    dt_array_add(&m3u->playlists, &m3u->n_playlists, pls);
     return pls;
 }
 
@@ -113,11 +110,8 @@ static struct variant *new_variant(hls_m3u_t *m3u, struct variant_info *info,
         strcpy(var->video_group, info->video);
         strcpy(var->subtitles_group, info->subtitles);
     }
-    var->queue_playlists = dt_queue_new();
-    dt_queue_push_tail(m3u->queue_variants, var);
-    m3u->n_variants++;
-    dt_queue_push_tail(var->queue_playlists, pls);
-    var->n_playlists++;
+    dt_array_add(&m3u->variants, &m3u->n_variants, var);
+    dt_array_add(&var->playlists, &var->n_playlists, pls);
     return var;
 }
 
@@ -205,8 +199,7 @@ static struct rendition *new_rendition(hls_m3u_t *m3u, struct rendition_info *in
         return NULL;
     }
 
-    dt_queue_push_tail(m3u->queue_renditions, rend);
-    m3u->n_renditions++;
+    dt_array_add(&m3u->renditions, &m3u->n_renditions, rend);
 
     rend->type = type;
     strcpy(rend->group_id, info->group_id);
@@ -217,8 +210,7 @@ static struct rendition *new_rendition(hls_m3u_t *m3u, struct rendition_info *in
     if (info->uri[0]) {
         rend->playlist = new_playlist(m3u, info->uri, url_base);
         if (rend->playlist) {
-            dt_queue_push_tail(rend->playlist->queue_renditions, rend);
-            rend->playlist->n_renditions++;
+            dt_array_add(&rend->playlist->renditions, &rend->playlist->n_renditions, rend);
         }
     }
 
@@ -317,7 +309,7 @@ static int ensure_playlist(hls_m3u_t *m3u, struct playlist **pls, const char *ur
     if (!new_variant(m3u, NULL, url, NULL)) {
         return DTHLS_ERROR_UNKOWN;
     }
-    *pls = dt_queue_peek_nth(m3u->queue_playlists, m3u->n_playlists - 1);
+    *pls = m3u->playlists[m3u->n_playlists - 1];
     return 0;
 }
 
@@ -326,7 +318,7 @@ static void debug_dump_playlist(struct playlist *pls)
     int i = 0;
     dt_info(TAG, "uri:%s- segments num:%d \n", pls->uri, pls->n_segments);
     for (i = 0; i < pls->n_segments; i++) {
-        struct segment *seg = dt_queue_peek_nth(pls->queue_segments, i);
+        struct segment *seg = pls->segments[i];
         if (seg) {
             dt_info(TAG, "index:%d uri:%s \n", i, seg->url);
         }
@@ -483,7 +475,7 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
                         ret = DTHLS_ERROR_UNKOWN;
                         goto fail;
                     }
-                    pls = dt_queue_peek_nth(m3u->queue_playlists, m3u->n_playlists - 1);
+                    pls = m3u->playlists[m3u->n_playlists - 1];
                 }
                 seg = malloc(sizeof(struct segment));
                 if (!seg) {
@@ -520,8 +512,7 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
                     ret = DTHLS_ERROR_UNKOWN;
                     goto fail;
                 }
-                dt_queue_push_tail(pls->queue_segments, seg);
-                pls->n_segments++;
+                dt_array_add(&pls->segments, &pls->n_segments, seg);
                 is_segment = 0;
                 seg->size = seg_size;
                 if (seg_size >= 0) {
@@ -556,7 +547,7 @@ static int m3u_update(hls_m3u_t *m3u)
     // check variants case
     if (m3u->n_playlists > 1) {
         for (i = 0; i < m3u->n_playlists; i++) {
-            struct playlist *pls = dt_queue_peek_nth(m3u->queue_playlists, i);
+            struct playlist *pls = m3u->playlists[i];
             m3u_download(m3u, pls->uri);
             if (ret = m3u_parse(m3u, pls->uri, pls) < 0) {
                 goto fail;
@@ -567,7 +558,7 @@ static int m3u_update(hls_m3u_t *m3u)
     // debug
     dt_info(TAG, "variant:%d playlists:%d \n", m3u->n_variants, m3u->n_playlists);
     for (i = 0; i < m3u->n_playlists; i++) {
-        struct playlist *pls = dt_queue_peek_nth(m3u->queue_playlists, i);
+        struct playlist *pls = m3u->playlists[i];
         debug_dump_playlist(pls);
     }
 fail:
@@ -576,9 +567,28 @@ fail:
 
 int dtm3u_open(hls_m3u_t *m3u)
 {
-    m3u->queue_playlists = dt_queue_new();
-    m3u->queue_variants = dt_queue_new();
-    return m3u_update(m3u);
+    int ret = DTHLS_ERROR_NONE;
+    int i = 0;
+    ret = m3u_update(m3u);
+    if (ret < 0) {
+        return ret;
+    }
+
+    if (m3u->variants[0]->playlists[0]->n_segments == 0) {
+        dt_error(TAG, "Empty playlist. \n");
+        return DTHLS_ERROR_UNKOWN;
+    }
+
+    if (m3u->variants[0]->playlists[0]->finished) {
+        int64_t duration = 0;
+        for (i = 0; i < m3u->variants[0]->playlists[0]->n_segments; i++) {
+            duration += m3u->variants[0]->playlists[0]->segments[i]->duration;
+        }
+        m3u->duration = duration;
+        dt_info(TAG, "Get duration %"PRId64"\n", duration);
+    }
+
+    return ret;
 }
 
 int dtm3u_close(hls_m3u_t *m3u)

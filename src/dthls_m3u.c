@@ -133,7 +133,7 @@ static void handle_variant_args(struct variant_info *info, const char *key,
     }
 }
 
-static int m3u_parse_stream(char *line, struct variant_info *info)
+static int m3u_parse_variant_streams(char *line, struct variant_info *info)
 {
     const char *match = strstr(line, ":");
     if (match == NULL) {
@@ -143,6 +143,75 @@ static int m3u_parse_stream(char *line, struct variant_info *info)
     int cur_pos = match - line;
     memset(info, 0, sizeof(struct variant_info));
     dt_parse_key_value(line + cur_pos + 1, (dt_parse_key_val_cb)handle_variant_args, info);
+}
+
+struct init_section_info {
+    char uri[MAX_URL_SIZE];
+    char byterange[32];
+};
+
+static struct segment *new_init_section(struct playlist *pls,
+                                        struct init_section_info *info,
+                                        const char *url_base)
+{
+    struct segment *sec;
+    char *ptr;
+    char tmp_str[MAX_URL_SIZE];
+
+    if (!info->uri[0]) {
+        return NULL;
+    }
+
+    sec = malloc(sizeof(*sec));
+    if (!sec) {
+        return NULL;
+    }
+
+    dt_make_absolute_url(tmp_str, sizeof(tmp_str), url_base, info->uri);
+    sec->url = strdup(tmp_str);
+    if (!sec->url) {
+        dt_free(sec);
+        return NULL;
+    }
+
+    if (info->byterange[0]) {
+        sec->size = atoi(info->byterange);
+        ptr = strchr(info->byterange, '@');
+        if (ptr) {
+            sec->url_offset = atoi(ptr + 1);
+        }
+    } else {
+        /* the entire file is the init section */
+        sec->size = -1;
+    }
+
+    dynarray_add(&pls->init_sections, &pls->n_init_sections, sec);
+
+    return sec;
+}
+
+static void handle_init_section_args(struct init_section_info *info, const char *key,
+                                     int key_len, char **dest, int *dest_len)
+{
+    if (!strncmp(key, "URI=", key_len)) {
+        *dest     =        info->uri;
+        *dest_len = sizeof(info->uri);
+    } else if (!strncmp(key, "BYTERANGE=", key_len)) {
+        *dest     =        info->byterange;
+        *dest_len = sizeof(info->byterange);
+    }
+}
+
+static int m3u_parse_init_section(char *line, struct init_section_info *info)
+{
+    const char *match = strstr(line, ":");
+    if (match == NULL) {
+        return -1;
+    }
+    dt_trimspace(line);
+    int cur_pos = match - line;
+    memset(info, 0, sizeof(struct init_section_info));
+    dt_parse_key_value(line + cur_pos + 1, (dt_parse_key_val_cb)handle_init_section_args, info);
 }
 
 struct rendition_info {
@@ -344,6 +413,10 @@ static int read_line(char *data, int inlen, char *buf, int maxlen)
         return -1;
     }
     memcpy(buf, data, off);
+    while (off > 0 && isspace(buf[off - 1])) {
+        buf[--off] = '\0';
+    }
+
     if (strlen(buf) > 0) {
         dt_info(TAG, "read line:%s\n", buf);
     }
@@ -382,6 +455,7 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
         return DTHLS_ERROR_UNKOWN;
     }
     if (strcmp(line, "#EXTM3U")) {
+        dt_info(TAG, "Invalid m3u8 format\n");
         return DTHLS_ERROR_UNKOWN;
     }
     off += len;
@@ -394,6 +468,7 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
         memset(line, 0, sizeof(line));
         len = read_line(in + off, insize - off, line, sizeof(line));
         if (len < 0) {
+            dt_info(TAG, "read line failed , eof reached \n");
             break;
         }
         if (len == 0) {
@@ -407,7 +482,7 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
         // parse line
         if (dt_strstart(line, "#EXT-X-STREAM-INF:", &ptr)) {
             memset(&variant_info, 0, sizeof(variant_info));
-            m3u_parse_stream(line, &variant_info);
+            m3u_parse_variant_streams(line, &variant_info);
             is_variant = 1;
             dt_info(TAG, "Get varant stream, bandwidth:%s \n", variant_info.bandwidth);
         } else if (dt_strstart(line, "#EXT-X-KEY:", &ptr)) {
@@ -442,6 +517,13 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
             }
             dt_info(TAG, "Get playlist type:%lld\n", pls->type);
         } else if (dt_strstart(line, "#EXT-X-MAP:", &ptr)) {
+            struct init_section_info info = {{0}};
+            ret = ensure_playlist(m3u, &pls, url);
+            if (ret < 0) {
+                goto fail;
+            }
+            m3u_parse_init_section(line, &info);
+            cur_init_section = new_init_section(pls, &info, url);
             continue;
         } else if (dt_strstart(line, "#EXT-X-ENDLIST:", &ptr)) {
             if (pls) {
@@ -572,6 +654,10 @@ int dtm3u_open(hls_m3u_t *m3u)
     ret = m3u_update(m3u);
     if (ret < 0) {
         return ret;
+    }
+
+    if (m3u->n_variants == 0) {
+        return DTHLS_ERROR_UNKOWN;
     }
 
     if (m3u->variants[0]->playlists[0]->n_segments == 0) {

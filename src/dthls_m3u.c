@@ -647,6 +647,31 @@ fail:
     return 0;
 }
 
+static void add_renditions_to_variant(hls_m3u_t *m3u, struct variant *var,
+                                      enum DTMediaType type, const char *group_id)
+{
+    int i;
+
+    for (i = 0; i < m3u->n_renditions; i++) {
+        struct rendition *rend = m3u->renditions[i];
+
+        if (rend->type == type && !strcmp(rend->group_id, group_id)) {
+
+            if (rend->playlist)
+                /* rendition is an external playlist
+                 * => add the playlist to the variant */
+            {
+                dynarray_add(&var->playlists, &var->n_playlists, rend->playlist);
+            } else
+                /* rendition is part of the variant main Media Playlist
+                 * => add the rendition to the main Media Playlist */
+                dynarray_add(&var->playlists[0]->renditions,
+                             &var->playlists[0]->n_renditions,
+                             rend);
+        }
+    }
+}
+
 int dtm3u_open(hls_m3u_t *m3u)
 {
     int ret = DTHLS_ERROR_NONE;
@@ -665,6 +690,8 @@ int dtm3u_open(hls_m3u_t *m3u)
         return DTHLS_ERROR_UNKOWN;
     }
 
+    /*  If this isn't a live stream, calculate the total duration of the
+     * stream. */
     if (m3u->variants[0]->playlists[0]->finished) {
         int64_t duration = 0;
         for (i = 0; i < m3u->variants[0]->playlists[0]->n_segments; i++) {
@@ -672,6 +699,20 @@ int dtm3u_open(hls_m3u_t *m3u)
         }
         m3u->duration = duration;
         dt_info(TAG, "Get duration %"PRId64"\n", duration);
+    }
+
+    /*  Associate renditions with variants */
+    for (i = 0; i < m3u->n_variants; i++) {
+        struct variant *var = m3u->variants[i];
+        if (var->audio_group[0]) {
+            add_renditions_to_variant(m3u, var, DTMEDIA_TYPE_AUDIO, var->audio_group);
+        }
+        if (var->video_group[0]) {
+            add_renditions_to_variant(m3u, var, DTMEDIA_TYPE_VIDEO, var->video_group);
+        }
+        if (var->subtitles_group[0]) {
+            add_renditions_to_variant(m3u, var, DTMEDIA_TYPE_SUBTITLE, var->subtitles_group);
+        }
     }
 
     return ret;

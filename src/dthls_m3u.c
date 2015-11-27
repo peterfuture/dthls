@@ -20,11 +20,18 @@
 #include <unistd.h>
 #include <errno.h>
 
+#ifdef ENABLE_FFMPEG
+#include "libavformat/avformat.h"
+#endif
+
 #include "dtcurl/dtcurl_api.h"
 #include "dt_log.h"
 #include "dt_utils.h"
+#include "dt_macro.h"
 
+#include "dthls_error.h"
 #include "dthls_priv.h"
+#include "dthls_macro.h"
 #include "dthls_m3u.h"
 
 #define TAG "M3U"
@@ -75,7 +82,7 @@ static struct playlist *new_playlist(hls_m3u_t *m3u, const char *uri, const char
         return NULL;
     }
     memset(pls, 0, sizeof(struct playlist));
-    dt_make_absolute_url(pls->uri, sizeof(pls->uri), base, uri);
+    dt_make_absolute_url(pls->url, sizeof(pls->url), base, uri);
     dt_array_add(&m3u->playlists, &m3u->n_playlists, pls);
     return pls;
 }
@@ -385,7 +392,7 @@ static int ensure_playlist(hls_m3u_t *m3u, struct playlist **pls, const char *ur
 static void debug_dump_playlist(struct playlist *pls)
 {
     int i = 0;
-    dt_info(TAG, "uri:%s- segments num:%d \n", pls->uri, pls->n_segments);
+    dt_info(TAG, "uri:%s- segments num:%d \n", pls->url, pls->n_segments);
     for (i = 0; i < pls->n_segments; i++) {
         struct segment *seg = pls->segments[i];
         if (seg) {
@@ -443,6 +450,12 @@ static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
     struct variant_info variant_info;
     char tmp_str[MAX_URL_SIZE];
     struct segment *cur_init_section = NULL;
+
+    // First download M3u
+    ret = m3u_download(m3u, url);
+    if (ret < 0) {
+        return ret;
+    }
 
     char *in = m3u->content;
     int insize = (int)m3u->filesize;
@@ -623,26 +636,18 @@ static int m3u_update(hls_m3u_t *m3u)
 {
     int i;
     int ret;
-    m3u_download(m3u, m3u->uri);
     m3u_parse(m3u, m3u->uri, NULL);
-
     // check variants case
     if (m3u->n_playlists > 1) {
         for (i = 0; i < m3u->n_playlists; i++) {
             struct playlist *pls = m3u->playlists[i];
-            m3u_download(m3u, pls->uri);
-            if (ret = m3u_parse(m3u, pls->uri, pls) < 0) {
+            if (ret = m3u_parse(m3u, pls->url, pls) < 0) {
                 goto fail;
             }
         }
     }
 
-    // debug
     dt_info(TAG, "variant:%d playlists:%d \n", m3u->n_variants, m3u->n_playlists);
-    for (i = 0; i < m3u->n_playlists; i++) {
-        struct playlist *pls = m3u->playlists[i];
-        debug_dump_playlist(pls);
-    }
 fail:
     return 0;
 }
@@ -670,6 +675,86 @@ static void add_renditions_to_variant(hls_m3u_t *m3u, struct variant *var,
                              rend);
         }
     }
+}
+
+static int64_t default_reload_interval(struct playlist *pls)
+{
+    return pls->n_segments > 0 ?
+           pls->segments[pls->n_segments - 1]->duration :
+           pls->target_duration;
+}
+
+/* if timestamp was in valid range: returns 1 and sets seq_no
+ * if not: returns 0 and sets seq_no to closest segment */
+static int find_timestamp_in_playlist(hls_m3u_t *m3u, struct playlist *pls,
+                                      int64_t timestamp, int *seq_no)
+{
+    int i;
+    int64_t pos = m3u->first_timestamp == DT_NOPTS_VALUE ?
+                  0 : m3u->first_timestamp;
+
+    if (timestamp < pos) {
+        *seq_no = pls->start_seq_no;
+        return 0;
+    }
+
+    for (i = 0; i < pls->n_segments; i++) {
+        int64_t diff = pos + pls->segments[i]->duration - timestamp;
+        if (diff > 0) {
+            *seq_no = pls->start_seq_no + i;
+            return 1;
+        }
+        pos += pls->segments[i]->duration;
+    }
+
+    *seq_no = pls->start_seq_no + pls->n_segments - 1;
+
+    return 0;
+}
+
+
+static int select_cur_seq_no(hls_m3u_t *m3u, struct playlist *pls)
+{
+    int seq_no;
+
+    if (!pls->finished && !m3u->first_packet &&
+        dt_gettime() - pls->last_load_time >= default_reload_interval(pls))
+        /* reload the playlist since it was suspended */
+    {
+        m3u_parse(m3u, pls->url, pls);
+    }
+
+    /* If playback is already in progress (we are just selecting a new
+     * playlist) and this is a complete file, find the matching segment
+     * by counting durations. */
+    if (pls->finished && m3u->cur_timestamp != DT_NOPTS_VALUE) {
+        find_timestamp_in_playlist(m3u, pls, m3u->cur_timestamp, &seq_no);
+        return seq_no;
+    }
+
+    if (!pls->finished) {
+        if (!m3u->first_packet && /* we are doing a segment selection during playback */
+            m3u->cur_seq_no >= pls->start_seq_no &&
+            m3u->cur_seq_no < pls->start_seq_no + pls->n_segments)
+            /* While spec 3.4.3 says that we cannot assume anything about the
+             * content at the same sequence number on different playlists,
+             * in practice this seems to work and doing it otherwise would
+             * require us to download a segment to inspect its timestamps. */
+        {
+            return m3u->cur_seq_no;
+        }
+
+        /* If this is a live stream, start live_start_index segments from the
+         * start or end */
+        if (m3u->live_start_index < 0) {
+            return pls->start_seq_no + DT_MAX(pls->n_segments + m3u->live_start_index, 0);
+        } else {
+            return pls->start_seq_no + DT_MIN(m3u->live_start_index, pls->n_segments - 1);
+        }
+    }
+
+    /* Otherwise just start on the first segment. */
+    return pls->start_seq_no;
 }
 
 int dtm3u_open(hls_m3u_t *m3u)
@@ -716,8 +801,25 @@ int dtm3u_open(hls_m3u_t *m3u)
     }
 
 #ifdef ENABLE_FFMPEG
+    /*  Open the demuxer for each playlist */
+    for (i = 0; i < m3u->n_playlists; i++) {
+        struct playlist *pls = m3u->playlists[i];
+        AVInputFormat *in_fmt = NULL;
+        if (!(pls->ctx = (void *)avformat_alloc_context())) {
+            ret = DTERROR(ENOMEM);
+            goto fail;
+        }
+        if (pls->n_segments == 0) {
+            continue;
+        }
+        pls->index  = i;
+        pls->needed = 1;
+        pls->parent = m3u; // avformat context in ffmpeg
+        pls->cur_seq_no = select_cur_seq_no(m3u, pls);
+    }
 #endif
-
+    return DTHLS_ERROR_NONE;
+fail:
     return ret;
 }
 

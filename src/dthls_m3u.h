@@ -17,6 +17,7 @@
 #define DTHLS_M3U_H
 
 #include "dt_array.h"
+#include "dthls_priv.h"
 
 #define INITIAL_BUFFER_SIZE 32768
 #define MAX_FIELD_LEN 64
@@ -55,8 +56,12 @@ enum PlaylistType {
  * containing the next packet from this stream.
  */
 struct playlist {
-    char uri[MAX_URL_SIZE];
+    char url[MAX_URL_SIZE];
+    uint8_t *read_buffer;
     int index;
+    void *parent;
+    void *ctx;
+    hls_pkt_t pkt;
     int stream_offset;
 
     int finished;
@@ -145,6 +150,12 @@ typedef struct hls_m3u {
     struct playlist **playlists;
     int n_renditions;
     struct rendition **renditions;
+
+    int cur_seq_no;
+    int live_start_index;
+    int first_packet;
+    int64_t first_timestamp;
+    int64_t cur_timestamp;
 
     // download handle
     void *curl;

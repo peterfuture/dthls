@@ -14,9 +14,10 @@
  */
 
 #include <stdint.h>
+#include "dthls_priv.h"
 
 int dthls_open(void **priv, const char *uri);
-int dthls_read(void *priv, char *buf, int size);
+int dthls_read_packet(void *priv, hls_pkt_t *ppkt);
 int dthls_seek(void *priv, int64_t pos, int whence);
 int dthls_set_parameter(void *priv, int key, void *value);
 int dthls_get_parameter(void *priv, int key, void *value);

@@ -90,7 +90,7 @@ int dtbuf_get(dt_buffer_t * dbt, uint8_t * out, int size)
         goto QUIT;              //get nothing
     }
 
-    len = MIN(dbt->level, size);
+    len = DT_MIN(dbt->level, size);
     if (dbt->wr_ptr > dbt->rd_ptr) {
         memcpy(out, dbt->rd_ptr, len);
         dbt->rd_ptr += len;
@@ -125,7 +125,7 @@ int dtbuf_put(dt_buffer_t * dbt, uint8_t * in, int size)
         goto QUIT;              // no space to write
     }
 
-    len = MIN(dbt->size - dbt->level, size);
+    len = DT_MIN(dbt->size - dbt->level, size);
     if (dbt->wr_ptr < dbt->rd_ptr) {
         memcpy(dbt->wr_ptr, in, len);
         dbt->wr_ptr += len;

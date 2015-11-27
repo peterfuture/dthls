@@ -15,6 +15,7 @@
  */
 
 #include "dthls_priv.h"
+#include "dthls_session.h"
 
 #define TAG "HLS-API"
 

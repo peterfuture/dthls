@@ -715,6 +715,9 @@ int dtm3u_open(hls_m3u_t *m3u)
         }
     }
 
+#ifdef ENABLE_FFMPEG
+#endif
+
     return ret;
 }
 

@@ -42,6 +42,13 @@ static void *hls_session_download_loop(void *arg)
 int dthls_session_open(dthls_session_t *session, const char *uri)
 {
     int ret = DTHLS_ERROR_NONE;
+
+    // Init ffmpeg
+#ifdef ENABLE_FFMPEG
+    av_register_all();
+    dt_info(TAG, "register all ffmpeg elements.\n");
+#endif
+
     memset(session, 0, sizeof(*session));
     session->uri = strdup(uri);
     dt_info(TAG, "hls url:%s \n", session->uri);

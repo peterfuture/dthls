@@ -757,10 +757,16 @@ static int select_cur_seq_no(hls_m3u_t *m3u, struct playlist *pls)
     return pls->start_seq_no;
 }
 
+static int read_data(void *opaque, uint8_t *buf, int buf_size)
+{
+    return 0;
+}
+
 int dtm3u_open(hls_m3u_t *m3u)
 {
     int ret = DTHLS_ERROR_NONE;
     int i = 0;
+    int stream_offset = 0;
     ret = m3u_update(m3u);
     if (ret < 0) {
         return ret;
@@ -823,28 +829,27 @@ int dtm3u_open(hls_m3u_t *m3u)
             pls->ctx = NULL;
             goto fail;
         }
-
-        ffio_init_context(&pls->pb, pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls,
-                          read_data, NULL, NULL);
-        pls->pb.seekable = 0;
-        ret = av_probe_input_buffer(&pls->pb, &in_fmt, pls->segments[0]->url,
+        //ffio_init_context(&pls->pb, pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls,read_data, NULL, NULL);
+        pls->pb = avio_alloc_context(pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls, read_data, NULL, NULL);
+        pls->pb->seekable = 0;
+        ret = av_probe_input_buffer(pls->pb, &in_fmt, pls->segments[0]->url,
                                     NULL, 0, 0);
         if (ret < 0) {
             /* Free the ctx - it isn't initialized properly at this point,
              * so avformat_close_input shouldn't be called. If
              * avformat_open_input fails below, it frees and zeros the
              * context, so it doesn't need any special treatment like this. */
-            av_log(s, AV_LOG_ERROR, "Error when loading first segment '%s'\n", pls->segments[0]->url);
+            av_log(pls->ctx, AV_LOG_ERROR, "Error when loading first segment '%s'\n", pls->segments[0]->url);
             avformat_free_context(pls->ctx);
             pls->ctx = NULL;
             goto fail;
         }
-        pls->ctx->pb       = &pls->pb;
+        pls->ctx->pb       = pls->pb;
         pls->stream_offset = stream_offset;
 
-        if ((ret = ff_copy_whitelists(pls->ctx, s)) < 0) {
-            goto fail;
-        }
+        //if ((ret = ff_copy_whitelists(pls->ctx, s)) < 0) {
+        //    goto fail;
+        //}
 
         ret = avformat_open_input(&pls->ctx, pls->segments[0]->url, in_fmt, NULL);
         if (ret < 0) {

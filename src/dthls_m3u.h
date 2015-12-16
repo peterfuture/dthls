@@ -16,6 +16,10 @@
 #ifndef DTHLS_M3U_H
 #define DTHLS_M3U_H
 
+#ifdef ENABLE_FFMPEG
+#include "libavformat/avformat.h"
+#endif
+
 #include "dt_array.h"
 #include "dthls_priv.h"
 
@@ -61,7 +65,8 @@ struct playlist {
     int index;
 #ifdef ENABLE_FFMPEG
     void *parent;
-    URLContext *input;
+    AVIOContext *pb;
+    //URLContext *input;
     AVFormatContext *ctx;
 #endif
     hls_pkt_t pkt;

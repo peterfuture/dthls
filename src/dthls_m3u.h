@@ -59,8 +59,11 @@ struct playlist {
     char url[MAX_URL_SIZE];
     uint8_t *read_buffer;
     int index;
+#ifdef ENABLE_FFMPEG
     void *parent;
-    void *ctx;
+    URLContext *input;
+    AVFormatContext *ctx;
+#endif
     hls_pkt_t pkt;
     int stream_offset;
 

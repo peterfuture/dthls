@@ -805,7 +805,7 @@ int dtm3u_open(hls_m3u_t *m3u)
     for (i = 0; i < m3u->n_playlists; i++) {
         struct playlist *pls = m3u->playlists[i];
         AVInputFormat *in_fmt = NULL;
-        if (!(pls->ctx = (void *)avformat_alloc_context())) {
+        if (!(pls->ctx = avformat_alloc_context())) {
             ret = DTERROR(ENOMEM);
             goto fail;
         }
@@ -816,6 +816,40 @@ int dtm3u_open(hls_m3u_t *m3u)
         pls->needed = 1;
         pls->parent = m3u; // avformat context in ffmpeg
         pls->cur_seq_no = select_cur_seq_no(m3u, pls);
+        pls->read_buffer = dt_malloc(INITIAL_BUFFER_SIZE);
+        if (!pls->read_buffer) {
+            ret = AVERROR(ENOMEM);
+            avformat_free_context(pls->ctx);
+            pls->ctx = NULL;
+            goto fail;
+        }
+
+        ffio_init_context(&pls->pb, pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls,
+                          read_data, NULL, NULL);
+        pls->pb.seekable = 0;
+        ret = av_probe_input_buffer(&pls->pb, &in_fmt, pls->segments[0]->url,
+                                    NULL, 0, 0);
+        if (ret < 0) {
+            /* Free the ctx - it isn't initialized properly at this point,
+             * so avformat_close_input shouldn't be called. If
+             * avformat_open_input fails below, it frees and zeros the
+             * context, so it doesn't need any special treatment like this. */
+            av_log(s, AV_LOG_ERROR, "Error when loading first segment '%s'\n", pls->segments[0]->url);
+            avformat_free_context(pls->ctx);
+            pls->ctx = NULL;
+            goto fail;
+        }
+        pls->ctx->pb       = &pls->pb;
+        pls->stream_offset = stream_offset;
+
+        if ((ret = ff_copy_whitelists(pls->ctx, s)) < 0) {
+            goto fail;
+        }
+
+        ret = avformat_open_input(&pls->ctx, pls->segments[0]->url, in_fmt, NULL);
+        if (ret < 0) {
+            goto fail;
+        }
     }
 #endif
     return DTHLS_ERROR_NONE;

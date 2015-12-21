@@ -2,7 +2,7 @@
  * =====================================================================================
  *
  *    Filename   :  dthls_downloader.h
- *    Description:  
+ *    Description:
  *    Version    :  1.0
  *    Created    :  2015年12月21日 16时28分47秒
  *    Revision   :  none

@@ -2,7 +2,7 @@
  * =====================================================================================
  *
  *    Filename   :  dthls_downloader.c
- *    Description:  
+ *    Description:
  *    Version    :  1.0
  *    Created    :  2015年12月21日 16时28分06秒
  *    Revision   :  none
@@ -34,16 +34,18 @@
 
 int m3u_downloader_get_filesize(void *handle, int64_t *filesize)
 {
-    if(!handle)
+    if (!handle) {
         return DTHLS_ERROR_UNKOWN;
+    }
     dtcurl_get_parameter(handle, KEY_CURL_GET_FILESIZE, filesize);
     return DTHLS_ERROR_NONE;
 }
 
 int m3u_downloader_get_location(void *handle, char *location)
 {
-    if(!handle)
+    if (!handle) {
         return DTHLS_ERROR_UNKOWN;
+    }
     dtcurl_get_parameter(handle, KEY_CURL_GET_LOCATION, location);
     return DTHLS_ERROR_NONE;
 }
@@ -53,11 +55,13 @@ void *m3u_downloader_open(const char *url)
     void *curl_handle;
     int ret;
     int64_t filesize;
-    if(strlen(url) <= 0)
+    if (strlen(url) <= 0) {
         return NULL;
+    }
     ret = dtcurl_init(&curl_handle, url);
-    if(ret < 0)
+    if (ret < 0) {
         return NULL;
+    }
     while (1) {
         dtcurl_get_parameter(curl_handle, KEY_CURL_GET_FILESIZE, &filesize);
         if (filesize > 0) {
@@ -77,12 +81,13 @@ int m3u_downloader_read(void *handle, char *buf, int size, enum ReadFromURLMode 
     int ret;
 
     m3u_downloader_get_filesize(handle, &filesize);
-    if(mode == READ_COMPLETE)
+    if (mode == READ_COMPLETE) {
         len = (int)filesize;
-    else
+    } else {
         len = size;
+    }
     rlen = len;
-    
+
     while (1) {
         ret = dtcurl_read(handle, buf + wpos, len);
         if (ret > 0) {

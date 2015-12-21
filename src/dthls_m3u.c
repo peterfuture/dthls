@@ -49,7 +49,7 @@ static int m3u_download(hls_m3u_t *m3u, const char*url)
         return DTHLS_ERROR_UNKOWN;
     }
     ret = m3u_downloader_read(m3u->curl, m3u->content, m3u->filesize, READ_COMPLETE);
-    if(ret < m3u->filesize) {
+    if (ret < m3u->filesize) {
         dt_info(TAG, "warnning, not read enough data \n");
     }
     return 0;
@@ -747,19 +747,21 @@ static struct segment *current_segment(struct playlist *pls)
 
 static int update_init_section(struct playlist *pls, struct segment *seg)
 {
-    static const int max_init_section_size = 1024*1024;
+    static const int max_init_section_size = 1024 * 1024;
     hls_m3u_t *m3u = pls->parent;
     int64_t sec_size;
     int64_t urlsize;
     int ret;
 
-    if (seg->init_section == pls->cur_init_section)
+    if (seg->init_section == pls->cur_init_section) {
         return 0;
+    }
 
     pls->cur_init_section = NULL;
 
-    if (!seg->init_section)
+    if (!seg->init_section) {
         return 0;
+    }
 
     /* this will clobber playlist URLContext stuff, so this should be
      * called between segments only */
@@ -771,12 +773,13 @@ static int update_init_section(struct playlist *pls, struct segment *seg)
         return ret;
     }
 
-    if (seg->init_section->size >= 0)
+    if (seg->init_section->size >= 0) {
         sec_size = seg->init_section->size;
-    else if ((urlsize = ffurl_size(pls->input)) >= 0)
+    } else if ((urlsize = ffurl_size(pls->input)) >= 0) {
         sec_size = urlsize;
-    else
+    } else {
         sec_size = max_init_section_size;
+    }
 
     av_log(pls->parent, AV_LOG_DEBUG,
            "Downloading an initialization section of size %"PRId64"\n",
@@ -791,8 +794,9 @@ static int update_init_section(struct playlist *pls, struct segment *seg)
     ffurl_close(pls->input);
     pls->input = NULL;
 
-    if (ret < 0)
+    if (ret < 0) {
         return ret;
+    }
 
     pls->cur_init_section = seg->init_section;
     pls->init_sec_data_len = ret;
@@ -816,13 +820,14 @@ reload:
     // get segment
     if (v->cur_seq_no < v->start_seq_no) {
         av_log(NULL, AV_LOG_WARNING,
-                "skipping %d segments ahead, expired from playlists\n",
-                v->start_seq_no - v->cur_seq_no);
+               "skipping %d segments ahead, expired from playlists\n",
+               v->start_seq_no - v->cur_seq_no);
         v->cur_seq_no = v->start_seq_no;
     }
     if (v->cur_seq_no >= v->start_seq_no + v->n_segments) {
-        if (v->finished)
+        if (v->finished) {
             return AVERROR_EOF;
+        }
 
         usleep(10 * 1000);
         goto reload;
@@ -832,8 +837,9 @@ reload:
     seg = current_segment(v);
     /*  load/update Media Initialization Section, if any */
     ret = update_init_section(v, seg);
-    if(ret)
+    if (ret) {
         return ret;
+    }
     return 0;
 }
 #endif
@@ -881,7 +887,7 @@ int dtm3u_open(hls_m3u_t *m3u)
         }
     }
 #if 0
-//#ifdef ENABLE_FFMPEG
+    //#ifdef ENABLE_FFMPEG
     /*  Open the demuxer for each playlist */
     for (i = 0; i < m3u->n_playlists; i++) {
         struct playlist *pls = m3u->playlists[i];

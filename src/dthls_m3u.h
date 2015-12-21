@@ -18,6 +18,7 @@
 
 #ifdef ENABLE_FFMPEG
 #include "libavformat/avformat.h"
+#include "libavformat/avio.h"
 #endif
 
 #include "dt_array.h"
@@ -72,7 +73,7 @@ struct playlist {
     hls_pkt_t pkt;
     int stream_offset;
 
-    int finished;
+    int finished;                 // Have #ENDLIST or not
     enum PlaylistType type;
     int64_t target_duration;
     int start_seq_no;

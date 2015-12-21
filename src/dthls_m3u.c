@@ -20,10 +20,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-#ifdef ENABLE_FFMPEG
-#include "libavformat/avformat.h"
-#endif
-
 #include "dtcurl/dtcurl_api.h"
 #include "dt_log.h"
 #include "dt_utils.h"
@@ -33,44 +29,28 @@
 #include "dthls_priv.h"
 #include "dthls_macro.h"
 #include "dthls_m3u.h"
+#include "dthls_downloader.h"
 
 #define TAG "M3U"
 
-static int m3u_download(hls_m3u_t *m3u, const char*uri)
+static int m3u_download(hls_m3u_t *m3u, const char*url)
 {
-    void *curl_ctx = m3u->curl;
-    int ret = dtcurl_init(&curl_ctx, uri);
-    if (ret < 0) {
+    m3u->curl = m3u_downloader_open(url);
+    if (!m3u->curl) {
         return DTHLS_ERROR_UNKOWN;
     }
-    while (1) {
-        dtcurl_get_parameter(curl_ctx, KEY_CURL_GET_FILESIZE, &m3u->filesize);
-        if (m3u->filesize > 0) {
-            break;
-        }
-        usleep(10 * 1000);
-    }
+    int ret = m3u_downloader_get_filesize(m3u->curl, &m3u->filesize);
     dt_info(TAG, "get filesize:%" PRId64 "\n", m3u->filesize);
-    dtcurl_get_parameter(curl_ctx, KEY_CURL_GET_LOCATION, &m3u->location);
+    ret = m3u_downloader_get_location(m3u->curl, m3u->location);
     dt_info(TAG, "get location:%s \n", (!m3u->location) ? m3u->uri : m3u->location);
     m3u->content = (unsigned char *)malloc((int)m3u->filesize);
     if (!m3u->content) {
         dt_info(TAG, "malloc m3u buffer failed \n");
         return DTHLS_ERROR_UNKOWN;
     }
-    int wpos = 0;
-    int len = (int)m3u->filesize;
-    while (1) {
-        ret = dtcurl_read(curl_ctx, m3u->content + wpos, len);
-        if (ret > 0) {
-            dt_info(TAG, "read %d bytes \n", ret);
-            len -= ret;
-            wpos += ret;
-            if (len <= 0) {
-                break;
-            }
-        }
-        usleep(10000);
+    ret = m3u_downloader_read(m3u->curl, m3u->content, m3u->filesize, READ_COMPLETE);
+    if(ret < m3u->filesize) {
+        dt_info(TAG, "warnning, not read enough data \n");
     }
     return 0;
 }
@@ -757,11 +737,106 @@ static int select_cur_seq_no(hls_m3u_t *m3u, struct playlist *pls)
     return pls->start_seq_no;
 }
 
-static int read_data(void *opaque, uint8_t *buf, int buf_size)
+static struct segment *current_segment(struct playlist *pls)
 {
+    return pls->segments[pls->cur_seq_no - pls->start_seq_no];
+}
+
+#if 0
+//#ifdef ENABLE_FFMPEG
+
+static int update_init_section(struct playlist *pls, struct segment *seg)
+{
+    static const int max_init_section_size = 1024*1024;
+    hls_m3u_t *m3u = pls->parent;
+    int64_t sec_size;
+    int64_t urlsize;
+    int ret;
+
+    if (seg->init_section == pls->cur_init_section)
+        return 0;
+
+    pls->cur_init_section = NULL;
+
+    if (!seg->init_section)
+        return 0;
+
+    /* this will clobber playlist URLContext stuff, so this should be
+     * called between segments only */
+    ret = open_input(c, pls, seg->init_section);
+    if (ret < 0) {
+        av_log(pls->parent, AV_LOG_WARNING,
+               "Failed to open an initialization section in playlist %d\n",
+               pls->index);
+        return ret;
+    }
+
+    if (seg->init_section->size >= 0)
+        sec_size = seg->init_section->size;
+    else if ((urlsize = ffurl_size(pls->input)) >= 0)
+        sec_size = urlsize;
+    else
+        sec_size = max_init_section_size;
+
+    av_log(pls->parent, AV_LOG_DEBUG,
+           "Downloading an initialization section of size %"PRId64"\n",
+           sec_size);
+
+    sec_size = FFMIN(sec_size, max_init_section_size);
+
+    av_fast_malloc(&pls->init_sec_buf, &pls->init_sec_buf_size, sec_size);
+
+    ret = read_from_url(pls, seg->init_section, pls->init_sec_buf,
+                        pls->init_sec_buf_size, READ_COMPLETE);
+    ffurl_close(pls->input);
+    pls->input = NULL;
+
+    if (ret < 0)
+        return ret;
+
+    pls->cur_init_section = seg->init_section;
+    pls->init_sec_data_len = ret;
+    pls->init_sec_buf_read_offset = 0;
+
+    /* spec says audio elementary streams do not have media initialization
+     * sections, so there should be no ID3 timestamps */
+    pls->is_id3_timestamped = 0;
+
     return 0;
 }
 
+// provide data for AVFormatContext->pb
+static int read_data(void *opaque, uint8_t *buf, int buf_size)
+{
+    struct playlist *v = opaque;
+    hls_m3u_t *m3u = v->parent;
+    struct segment *seg;
+    int ret;
+reload:
+    // get segment
+    if (v->cur_seq_no < v->start_seq_no) {
+        av_log(NULL, AV_LOG_WARNING,
+                "skipping %d segments ahead, expired from playlists\n",
+                v->start_seq_no - v->cur_seq_no);
+        v->cur_seq_no = v->start_seq_no;
+    }
+    if (v->cur_seq_no >= v->start_seq_no + v->n_segments) {
+        if (v->finished)
+            return AVERROR_EOF;
+
+        usleep(10 * 1000);
+        goto reload;
+    }
+
+    // get one valid segment
+    seg = current_segment(v);
+    /*  load/update Media Initialization Section, if any */
+    ret = update_init_section(v, seg);
+    if(ret)
+        return ret;
+    return 0;
+}
+#endif
 int dtm3u_open(hls_m3u_t *m3u)
 {
     int ret = DTHLS_ERROR_NONE;
@@ -805,8 +880,8 @@ int dtm3u_open(hls_m3u_t *m3u)
             add_renditions_to_variant(m3u, var, DTMEDIA_TYPE_SUBTITLE, var->subtitles_group);
         }
     }
-
-#ifdef ENABLE_FFMPEG
+#if 0
+//#ifdef ENABLE_FFMPEG
     /*  Open the demuxer for each playlist */
     for (i = 0; i < m3u->n_playlists; i++) {
         struct playlist *pls = m3u->playlists[i];
@@ -829,7 +904,6 @@ int dtm3u_open(hls_m3u_t *m3u)
             pls->ctx = NULL;
             goto fail;
         }
-        //ffio_init_context(&pls->pb, pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls,read_data, NULL, NULL);
         pls->pb = avio_alloc_context(pls->read_buffer, INITIAL_BUFFER_SIZE, 0, pls, read_data, NULL, NULL);
         pls->pb->seekable = 0;
         ret = av_probe_input_buffer(pls->pb, &in_fmt, pls->segments[0]->url,

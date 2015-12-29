@@ -19,5 +19,6 @@
 #define DTHLS_ERROR_UNKOWN -1
 #define DTHLS_ERROR_NONE 0
 
+#define DTHLS_ERROR_MORE_SEGMENT -100
 
 #endif

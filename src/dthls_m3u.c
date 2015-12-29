@@ -742,9 +742,7 @@ static struct segment *current_segment(struct playlist *pls)
     return pls->segments[pls->cur_seq_no - pls->start_seq_no];
 }
 
-#if 0
-//#ifdef ENABLE_FFMPEG
-
+#ifdef ENABLE_FFMPEG
 static int update_init_section(struct playlist *pls, struct segment *seg)
 {
     static const int max_init_section_size = 1024 * 1024;
@@ -763,20 +761,13 @@ static int update_init_section(struct playlist *pls, struct segment *seg)
         return 0;
     }
 
-    /* this will clobber playlist URLContext stuff, so this should be
-     * called between segments only */
-    ret = open_input(c, pls, seg->init_section);
-    if (ret < 0) {
-        av_log(pls->parent, AV_LOG_WARNING,
-               "Failed to open an initialization section in playlist %d\n",
-               pls->index);
-        return ret;
+    void *handle = m3u_downloader_open(seg->init_section->url);
+    if (!handle) {
+        return DTHLS_ERROR_UNKOWN;
     }
-
+    m3u_downloader_get_filesize(handle, &(seg->init_section->size));
     if (seg->init_section->size >= 0) {
         sec_size = seg->init_section->size;
-    } else if ((urlsize = ffurl_size(pls->input)) >= 0) {
-        sec_size = urlsize;
     } else {
         sec_size = max_init_section_size;
     }
@@ -787,13 +778,9 @@ static int update_init_section(struct playlist *pls, struct segment *seg)
 
     sec_size = FFMIN(sec_size, max_init_section_size);
 
-    av_fast_malloc(&pls->init_sec_buf, &pls->init_sec_buf_size, sec_size);
-
-    ret = read_from_url(pls, seg->init_section, pls->init_sec_buf,
-                        pls->init_sec_buf_size, READ_COMPLETE);
-    ffurl_close(pls->input);
-    pls->input = NULL;
-
+    pls->init_sec_buf = (uint8_t *)dt_malloc(sec_size);
+    ret = m3u_downloader_read(handle, pls->init_sec_buf, pls->init_sec_buf_size, READ_COMPLETE);
+    m3u_downloader_close(handle);
     if (ret < 0) {
         return ret;
     }
@@ -816,31 +803,66 @@ static int read_data(void *opaque, uint8_t *buf, int buf_size)
     hls_m3u_t *m3u = v->parent;
     struct segment *seg;
     int ret;
-reload:
-    // get segment
+
+    dt_info(TAG, "Finally Enter read data\n");
+
+    // Try to get valid segment
     if (v->cur_seq_no < v->start_seq_no) {
         av_log(NULL, AV_LOG_WARNING,
                "skipping %d segments ahead, expired from playlists\n",
                v->start_seq_no - v->cur_seq_no);
         v->cur_seq_no = v->start_seq_no;
     }
+    dt_info(TAG, "Cur seg:%d \n", v->cur_seq_no);
+
+    // cur seq no exceed max, wait update m3u for live or eof
     if (v->cur_seq_no >= v->start_seq_no + v->n_segments) {
         if (v->finished) {
             return AVERROR_EOF;
         }
-
-        usleep(10 * 1000);
-        goto reload;
+        // wait update m3u
+        return DTHLS_ERROR_MORE_SEGMENT;
     }
 
-    // get one valid segment
+    // get current segment
     seg = current_segment(v);
-    /*  load/update Media Initialization Section, if any */
+    /* load/update Media Initialization Section, if any */
     ret = update_init_section(v, seg);
     if (ret) {
         return ret;
     }
-    return 0;
+    if (v->init_sec_buf_read_offset < v->init_sec_data_len) {
+        /*  Push init section out first before first actual segment */
+        int copy_size = FFMIN(v->init_sec_data_len - v->init_sec_buf_read_offset, buf_size);
+        memcpy(buf, v->init_sec_buf, copy_size);
+        v->init_sec_buf_read_offset += copy_size;
+        return copy_size;
+    }
+
+    // read data from segment
+    if (!v->curl) {
+        dt_info(TAG, "Start read url: %s \n", seg->url);
+        v->curl = m3u_downloader_open(seg->url);
+    }
+
+    int rlen = buf_size;
+    int rsize = 0;
+    while (rlen > 0) {
+        ret = m3u_downloader_read(v->curl, buf + rsize, rlen, READ_NORMAL);
+        if (ret < 0) {
+            break;
+        }
+        rlen -= ret;
+        rsize += ret;
+    }
+    if (ret < 0) {
+        m3u_downloader_close(v->curl);
+        v->curl = NULL;
+        v->cur_seq_no++;
+    }
+    dt_info(TAG, "read:%d end\n", rsize);
+
+    return rsize;
 }
 #endif
 int dtm3u_open(hls_m3u_t *m3u)
@@ -886,8 +908,7 @@ int dtm3u_open(hls_m3u_t *m3u)
             add_renditions_to_variant(m3u, var, DTMEDIA_TYPE_SUBTITLE, var->subtitles_group);
         }
     }
-#if 0
-    //#ifdef ENABLE_FFMPEG
+#ifdef ENABLE_FFMPEG
     /*  Open the demuxer for each playlist */
     for (i = 0; i < m3u->n_playlists; i++) {
         struct playlist *pls = m3u->playlists[i];

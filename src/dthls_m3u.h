@@ -68,6 +68,7 @@ struct playlist {
     void *parent;
     AVIOContext *pb;
     //URLContext *input;
+    void *curl;
     AVFormatContext *ctx;
 #endif
     hls_pkt_t pkt;

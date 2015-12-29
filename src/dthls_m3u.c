@@ -55,6 +55,82 @@ static int m3u_download(hls_m3u_t *m3u, const char*url)
     return 0;
 }
 
+static void free_segment_list(struct playlist *pls)
+{
+    int i;
+    for (i = 0; i < pls->n_segments; i++) {
+        dt_freep(&pls->segments[i]->key);
+        dt_freep(&pls->segments[i]->url);
+        dt_freep(&pls->segments[i]);
+    }
+    dt_freep(&pls->segments);
+    pls->n_segments = 0;
+}
+
+static void free_init_section_list(struct playlist *pls)
+{
+    int i;
+    for (i = 0; i < pls->n_init_sections; i++) {
+        dt_freep(&pls->init_sections[i]->url);
+        dt_freep(&pls->init_sections[i]);
+    }
+    dt_freep(&pls->init_sections);
+    pls->n_init_sections = 0;
+}
+
+static void free_playlist_list(hls_m3u_t *m3u)
+{
+    int i;
+    for (i = 0; i < m3u->n_playlists; i++) {
+        struct playlist *pls = m3u->playlists[i];
+        free_segment_list(pls);
+        free_init_section_list(pls);
+        dt_freep(&pls->renditions);
+        dt_freep(&pls->id3_buf);
+        //dt_dict_free(&pls->id3_initial);
+        //ff_id3v2_free_extra_meta(&pls->id3_deferred_extra);
+        dt_freep(&pls->init_sec_buf);
+        //dt_packet_unref(&pls->pkt);
+        //dt_freep(&pls->pb.buffer);
+        if (pls->curl) {
+            m3u_downloader_close(pls->curl);
+        }
+#ifdef ENABLE_FFMPEG
+        if (pls->ctx) {
+            pls->ctx->pb = NULL;
+            avformat_close_input(&pls->ctx);
+        }
+#endif
+        dt_free(pls);
+    }
+    dt_freep(&m3u->playlists);
+    dt_freep(&m3u->cookies);
+    dt_freep(&m3u->user_agent);
+    m3u->n_playlists = 0;
+}
+
+static void free_variant_list(hls_m3u_t *m3u)
+{
+    int i;
+    for (i = 0; i < m3u->n_variants; i++) {
+        struct variant *var = m3u->variants[i];
+        dt_freep(&var->playlists);
+        dt_free(var);
+    }
+    dt_freep(&m3u->variants);
+    m3u->n_variants = 0;
+}
+
+static void free_rendition_list(hls_m3u_t *m3u)
+{
+    int i;
+    for (i = 0; i < m3u->n_renditions; i++) {
+        dt_freep(&m3u->renditions[i]);
+    }
+    dt_freep(&m3u->renditions);
+    m3u->n_renditions = 0;
+}
+
 static struct playlist *new_playlist(hls_m3u_t *m3u, const char *uri, const char *base)
 {
     struct playlist *pls = malloc(sizeof(struct playlist));
@@ -241,6 +317,10 @@ static struct rendition *new_rendition(hls_m3u_t *m3u, struct rendition_info *in
 
     /* URI is mandatory for subtitles as per spec */
     if (type == DTMEDIA_TYPE_SUBTITLE && !info->uri[0]) {
+        return NULL;
+    }
+    // sub not support yet
+    if (type == DTMEDIA_TYPE_SUBTITLE) {
         return NULL;
     }
 #if 0
@@ -632,6 +712,25 @@ fail:
     return 0;
 }
 
+static int playlist_in_multiple_variants(hls_m3u_t *m3u, struct playlist *pls)
+{
+    int variant_count = 0;
+    int i, j;
+
+    for (i = 0; i < m3u->n_variants && variant_count < 2; i++) {
+        struct variant *v = m3u->variants[i];
+
+        for (j = 0; j < v->n_playlists; j++) {
+            if (v->playlists[j] == pls) {
+                variant_count++;
+                break;
+            }
+        }
+    }
+
+    return variant_count >= 2;
+}
+
 static void add_renditions_to_variant(hls_m3u_t *m3u, struct variant *var,
                                       enum DTMediaType type, const char *group_id)
 {
@@ -743,6 +842,42 @@ static struct segment *current_segment(struct playlist *pls)
 }
 
 #ifdef ENABLE_FFMPEG
+
+static void add_metadata_from_renditions(AVFormatContext *s, struct playlist *pls,
+        enum AVMediaType type)
+{
+    int rend_idx = 0;
+    int i;
+
+    for (i = 0; i < pls->ctx->nb_streams; i++) {
+        AVStream *st = s->streams[pls->stream_offset + i];
+
+        if (st->codec->codec_type != type) {
+            continue;
+        }
+
+        for (; rend_idx < pls->n_renditions; rend_idx++) {
+            struct rendition *rend = pls->renditions[rend_idx];
+
+            if (rend->type != type) {
+                continue;
+            }
+
+            if (rend->language[0]) {
+                av_dict_set(&st->metadata, "language", rend->language, 0);
+            }
+            if (rend->name[0]) {
+                av_dict_set(&st->metadata, "comment", rend->name, 0);
+            }
+
+            st->disposition |= rend->disposition;
+        }
+        if (rend_idx >= pls->n_renditions) {
+            break;
+        }
+    }
+}
+
 static int update_init_section(struct playlist *pls, struct segment *seg)
 {
     static const int max_init_section_size = 1024 * 1024;
@@ -867,8 +1002,7 @@ static int read_data(void *opaque, uint8_t *buf, int buf_size)
 #endif
 int dtm3u_open(hls_m3u_t *m3u)
 {
-    int ret = DTHLS_ERROR_NONE;
-    int i = 0;
+    int ret = 0, i, j;
     int stream_offset = 0;
     ret = m3u_update(m3u);
     if (ret < 0) {
@@ -909,6 +1043,7 @@ int dtm3u_open(hls_m3u_t *m3u)
         }
     }
 #ifdef ENABLE_FFMPEG
+    AVFormatContext *s = avformat_alloc_context();
     /*  Open the demuxer for each playlist */
     for (i = 0; i < m3u->n_playlists; i++) {
         struct playlist *pls = m3u->playlists[i];
@@ -920,6 +1055,9 @@ int dtm3u_open(hls_m3u_t *m3u)
         if (pls->n_segments == 0) {
             continue;
         }
+
+        dt_info(TAG, "Start call avformat_open_input, url: %s\n", pls->segments[0]->url);
+
         pls->index  = i;
         pls->needed = 1;
         pls->parent = m3u; // avformat context in ffmpeg
@@ -956,10 +1094,72 @@ int dtm3u_open(hls_m3u_t *m3u)
         if (ret < 0) {
             goto fail;
         }
+
+        pls->ctx->ctx_flags &= ~AVFMTCTX_NOHEADER;
+        ret = avformat_find_stream_info(pls->ctx, NULL);
+        if (ret < 0) {
+            goto fail;
+        }
+
+        /*  Create new AVStreams for each stream in this playlist */
+        for (j = 0; j < pls->ctx->nb_streams; j++) {
+            AVStream *st = avformat_new_stream(s, NULL);
+            AVStream *ist = pls->ctx->streams[j];
+            if (!st) {
+                ret = AVERROR(ENOMEM);
+                goto fail;
+            }
+            st->id = i;
+            avcodec_copy_context(st->codec, pls->ctx->streams[j]->codec);
+
+            if (pls->is_id3_timestamped) { /*  custom timestamps via id3 */
+                avpriv_set_pts_info(st, 33, 1, MPEG_TIME_BASE);
+            } else {
+                avpriv_set_pts_info(st, ist->pts_wrap_bits, ist->time_base.num, ist->time_base.den);
+            }
+
+            add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_AUDIO);
+            add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_VIDEO);
+            add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_SUBTITLE);
+
+            stream_offset += pls->ctx->nb_streams;
+        }
+
+        /*  Create a program for each variant */
+        for (i = 0; i < m3u->n_variants; i++) {
+            struct variant *v = m3u->variants[i];
+            AVProgram *program;
+
+            program = av_new_program(s, i);
+            if (!program) {
+                goto fail;
+            }
+            av_dict_set_int(&program->metadata, "variant_bitrate", v->bandwidth, 0);
+
+            for (j = 0; j < v->n_playlists; j++) {
+                struct playlist *pls = v->playlists[j];
+                int is_shared = playlist_in_multiple_variants(m3u, pls);
+                int k;
+
+                for (k = 0; k < pls->ctx->nb_streams; k++) {
+                    struct AVStream *st = s->streams[pls->stream_offset + k];
+
+                    av_program_add_stream_index(s, i, pls->stream_offset + k);
+
+                    /* Set variant_bitrate for streams unique to this variant */
+                    if (!is_shared && v->bandwidth) {
+                        av_dict_set_int(&st->metadata, "variant_bitrate", v->bandwidth, 0);
+                    }
+                }
+            }
+        }
     }
 #endif
     return DTHLS_ERROR_NONE;
 fail:
+    free_playlist_list(m3u);
+    free_variant_list(m3u);
+    free_rendition_list(m3u);
     return ret;
 }
 

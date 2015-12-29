@@ -167,6 +167,10 @@ typedef struct hls_m3u {
     int64_t first_timestamp;
     int64_t cur_timestamp;
 
+    char *user_agent;                    ///< holds HTTP user agent set as an AVOption to the HTTP protocol context
+    char *cookies;                       ///< holds HTTP cookie values set in either the initial response or as an AVOption to the HTTP protocol context
+    char *headers;                       ///< holds HTTP headers set as an AVOption to the HTTP protocol context
+
     // download handle
     void *curl;
 } hls_m3u_t;

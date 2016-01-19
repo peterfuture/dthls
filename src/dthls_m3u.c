@@ -1124,36 +1124,33 @@ int dtm3u_open(hls_m3u_t *m3u)
 
             stream_offset += pls->ctx->nb_streams;
         }
+    }
 
-        /*  Create a program for each variant */
-        for (i = 0; i < m3u->n_variants; i++) {
-            struct variant *v = m3u->variants[i];
-            AVProgram *program;
+    /*  Create a program for each variant */
 
-            program = av_new_program(s, i);
-            if (!program) {
-                goto fail;
-            }
-            av_dict_set_int(&program->metadata, "variant_bitrate", v->bandwidth, 0);
-
-            for (j = 0; j < v->n_playlists; j++) {
-                struct playlist *pls = v->playlists[j];
-                int is_shared = playlist_in_multiple_variants(m3u, pls);
-                int k;
-
-                for (k = 0; k < pls->ctx->nb_streams; k++) {
-                    struct AVStream *st = s->streams[pls->stream_offset + k];
-
-                    av_program_add_stream_index(s, i, pls->stream_offset + k);
-
-                    /* Set variant_bitrate for streams unique to this variant */
-                    if (!is_shared && v->bandwidth) {
-                        av_dict_set_int(&st->metadata, "variant_bitrate", v->bandwidth, 0);
-                    }
+    for (i = 0; i < m3u->n_variants; i++) {
+        struct variant *v = m3u->variants[i];
+        AVProgram *program;
+        program = av_new_program(s, i);
+        if (!program) {
+            goto fail;
+        }
+        av_dict_set_int(&program->metadata, "variant_bitrate", v->bandwidth, 0);
+        for (j = 0; j < v->n_playlists; j++) {
+            struct playlist *pls = v->playlists[j];
+            int is_shared = playlist_in_multiple_variants(m3u, pls);
+            int k;
+            for (k = 0; k < pls->ctx->nb_streams; k++) {
+                struct AVStream *st = s->streams[pls->stream_offset + k];
+                av_program_add_stream_index(s, i, pls->stream_offset + k);
+                /* Set variant_bitrate for streams unique to this variant */
+                if (!is_shared && v->bandwidth) {
+                    av_dict_set_int(&st->metadata, "variant_bitrate", v->bandwidth, 0);
                 }
             }
         }
     }
+
 #endif
     return DTHLS_ERROR_NONE;
 fail:

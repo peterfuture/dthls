@@ -71,7 +71,7 @@ struct playlist {
     void *curl;
     AVFormatContext *ctx;
 #endif
-    hls_pkt_t pkt;
+    dt_av_pkt_t pkt;
     int stream_offset;
 
     int finished;                 // Have #ENDLIST or not

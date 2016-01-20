@@ -15,17 +15,5 @@
 
 #ifndef DTHLS_PRIV_H
 #define DTHLS_PRIV_H
-
-#include <stdint.h>
-
-typedef struct hls_pkt {
-    uint8_t *data;
-    int size;
-    int64_t pts;
-    int64_t dts;
-    int duration;
-    int key_frame;
-    int type;
-} hls_pkt_t;
-
+#include <dt_av.h>
 #endif

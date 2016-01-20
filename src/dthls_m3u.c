@@ -999,6 +999,35 @@ static int read_data(void *opaque, uint8_t *buf, int buf_size)
 
     return rsize;
 }
+
+static void debug_dump_stream(hls_m3u_t *m3u)
+{
+    AVFormatContext *ic = (AVFormatContext *)m3u->ic_ctx;
+    dt_info(TAG, "===================hls stream info==================\n");
+    dt_info(TAG, "| nb_streams:%d nb_programs:%d\n", ic->nb_streams, ic->nb_programs);
+    dt_info(TAG, "| stream info\n");
+    int i;
+    AVStream *pStream;
+    AVCodecContext *pCodec;
+    char type[32];
+    for (i = 0; i < ic->nb_streams; i++) {
+        pStream = ic->streams[i];
+        pCodec = pStream->codec;
+        if (pCodec->codec_type == AVMEDIA_TYPE_AUDIO) {
+            strcpy(type, "audio");
+        }
+        if (pCodec->codec_type == AVMEDIA_TYPE_VIDEO) {
+            strcpy(type, "video");
+        }
+        if (pCodec->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+            strcpy(type, "subtitle");
+        }
+        dt_info(TAG, "| index:%d type:%s \n", i, type);
+    }
+
+    dt_info(TAG, "====================================================\n");
+}
+
 #endif
 int dtm3u_open(hls_m3u_t *m3u)
 {
@@ -1127,7 +1156,6 @@ int dtm3u_open(hls_m3u_t *m3u)
     }
 
     /*  Create a program for each variant */
-
     for (i = 0; i < m3u->n_variants; i++) {
         struct variant *v = m3u->variants[i];
         AVProgram *program;
@@ -1150,7 +1178,8 @@ int dtm3u_open(hls_m3u_t *m3u)
             }
         }
     }
-
+    m3u->ic_ctx = s;
+    debug_dump_stream(m3u);
 #endif
     return DTHLS_ERROR_NONE;
 fail:

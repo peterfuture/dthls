@@ -173,6 +173,8 @@ typedef struct hls_m3u {
 
     // download handle
     void *curl;
+    // top ffmpeg avformat context
+    void *ic_ctx;
 } hls_m3u_t;
 
 

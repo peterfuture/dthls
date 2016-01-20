@@ -74,9 +74,9 @@ int dthls_session_open(dthls_session_t *session, const char *uri)
     return ret;
 }
 
-int dthls_read_packet(dthls_session_t *session, dt_av_pkt_t *pkt)
+int dthls_session_read_packet(dthls_session_t *session, dt_av_pkt_t *pkt)
 {
-    return 0;
+    return dtm3u_read_packet(&session->m3u, pkt);
 }
 
 int dthls_session_close(dthls_session_t *session)

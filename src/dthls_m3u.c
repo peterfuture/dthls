@@ -131,12 +131,23 @@ static void free_rendition_list(hls_m3u_t *m3u)
     m3u->n_renditions = 0;
 }
 
+/*
+ * Used to reset a statically allocated AVPacket to a clean slate,
+ * containing no data.
+ */
+static void reset_packet(AVPacket *pkt)
+{
+    av_init_packet(pkt);
+    pkt->data = NULL;
+}
+
 static struct playlist *new_playlist(hls_m3u_t *m3u, const char *uri, const char *base)
 {
     struct playlist *pls = malloc(sizeof(struct playlist));
     if (!pls) {
         return NULL;
     }
+    reset_packet(&pls->pkt);
     memset(pls, 0, sizeof(struct playlist));
     dt_make_absolute_url(pls->url, sizeof(pls->url), base, uri);
     dt_array_add(&m3u->playlists, &m3u->n_playlists, pls);
@@ -1187,6 +1198,70 @@ fail:
     free_variant_list(m3u);
     free_rendition_list(m3u);
     return ret;
+}
+
+int dtm3u_read_packet(hls_m3u_t *m3u, dt_av_pkt_t *pkt)
+{
+    int ret, i, minplaylist = -1;
+    dt_info(TAG, "Enter read one frame\n");
+    for (i = 0; i < m3u->n_playlists; i++) {
+        struct playlist *pls = m3u->playlists[i];
+        dt_info(TAG, "index:%d segment:%d\n", i, pls->n_segments);
+        /*  Make sure we've got one buffered packet from each open playlist
+         *  stream */
+        if (!pls->pkt.data) {
+            while (1) {
+                int64_t ts_diff;
+                AVRational tb;
+                ret = av_read_frame(pls->ctx, &pls->pkt);
+                if (ret < 0) {
+                    if (!avio_feof(&pls->pb) && ret != AVERROR_EOF) {
+                        return ret;
+                    }
+                    reset_packet(&pls->pkt);
+                    break;
+                } else {
+                    /*  stream_index check prevents matching picture attachments etc. */
+                    if (m3u->first_timestamp == AV_NOPTS_VALUE &&
+                        pls->pkt.dts       != AV_NOPTS_VALUE) {
+                        m3u->first_timestamp = pls->pkt.dts;
+                    }
+                    //av_rescale_q(pls->pkt.dts, get_timebase(pls), AV_TIME_BASE_Q);
+                    dt_info(TAG, "read frame ok, pts:0x%x\n", pls->pkt.dts);
+                }
+                break;
+            }
+        }
+
+        /*  Check if this stream has the packet with the lowest dts */
+
+        if (pls->pkt.data) {
+            struct playlist *minpls = minplaylist < 0 ? NULL : m3u->playlists[minplaylist];
+            if (minplaylist < 0) {
+                minplaylist = i;
+            } else {
+                int64_t dts = pls->pkt.dts;
+                int64_t mindts  = minpls->pkt.dts;
+                if (dts == AV_NOPTS_VALUE || (mindts != AV_NOPTS_VALUE && mindts > dts)) {
+                    minplaylist = i;
+                }
+            }
+        }
+    }
+    /*  If we got a packet, return it */
+    if (minplaylist >= 0) {
+        struct playlist *pls = m3u->playlists[minplaylist];
+        //*pkt = pls->pkt;
+        //pkt->stream_index += pls->stream_offset;
+        dt_info(TAG, "read one frame ok, pts:0x%x\n", pls->pkt.dts);
+        reset_packet(&m3u->playlists[minplaylist]->pkt);
+        if (pkt->dts != AV_NOPTS_VALUE) {
+            m3u->cur_timestamp = pkt->dts;
+        }
+        //av_rescale_q(pkt->dts, pls->ctx->streams[pls->pkt.stream_index]->time_base, AV_TIME_BASE_Q);
+        return 0;
+    }
+    return AVERROR_EOF;
 }
 
 int dtm3u_close(hls_m3u_t *m3u)

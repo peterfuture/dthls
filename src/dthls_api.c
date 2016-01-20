@@ -35,8 +35,10 @@ int dthls_open(void **priv, const char *uri)
     return 0;
 }
 
-int dthls_read(void *priv, char *buf, int size)
+int dthls_read_packet(void *priv, dt_av_pkt_t *pkt)
 {
+    dthls_session_t *session = (dthls_session_t *)priv;
+    dthls_session_read_packet(session, pkt);
     return 0;
 }
 

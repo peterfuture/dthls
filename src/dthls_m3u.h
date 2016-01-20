@@ -69,9 +69,9 @@ struct playlist {
     AVIOContext *pb;
     //URLContext *input;
     void *curl;
+    AVPacket pkt;
     AVFormatContext *ctx;
 #endif
-    dt_av_pkt_t pkt;
     int stream_offset;
 
     int finished;                 // Have #ENDLIST or not
@@ -179,5 +179,6 @@ typedef struct hls_m3u {
 
 
 int dtm3u_open(hls_m3u_t *m3u);
+int dtm3u_read_packet(hls_m3u_t *m3u, dt_av_pkt_t *pkt);
 
 #endif

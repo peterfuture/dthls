@@ -9,9 +9,10 @@ hls v5 impl in c. work with dtcurl
 - make
 - sudo make install
 
-## Links
+## Deps
 
 - [dtcurl](https://github.com/peterfuture/dtcurl)
+- [ffmpeg]
 
 ## Author
 

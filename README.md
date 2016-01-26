@@ -4,7 +4,7 @@ hls v5 impl in c. work with dtcurl
 
 
 ## Installation
-
+- install dtcurl & ffmpeg
 - mkdir build & cd build
 - make
 - sudo make install
@@ -12,7 +12,7 @@ hls v5 impl in c. work with dtcurl
 ## Deps
 
 - [dtcurl](https://github.com/peterfuture/dtcurl)
-- [ffmpeg]
+- [ffmpeg](https://github.com/FFmpeg/FFmpeg)
 
 ## Author
 

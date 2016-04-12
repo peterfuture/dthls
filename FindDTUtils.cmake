@@ -1,0 +1,70 @@
+#  Find dtutils
+#  Find the native DTUTILS headers and libraries.
+#
+#  DTUTILS_INCLUDE_DIRS - where to find dtutils/dt_utils.h, etc.
+#  DTUTILS_LIBRARIES    - List of libraries when using dtutils.
+#  DTUTILS_FOUND        - True if dtutils found.
+
+# Look for the header file.
+FIND_PATH(DTUTILS_INCLUDE_DIR dtutils/dt_utils.h
+  $ENV{INCLUDE}
+  "$ENV{LIB_DIR}/include"
+  /usr/local/include
+  /usr/include
+  #mingw
+  c:/msys/local/include
+  NO_DEFAULT_PATH
+  )
+
+MARK_AS_ADVANCED(DTUTILS_INCLUDE_DIR)
+
+# Look for the library.
+FIND_LIBRARY(DTUTILS_LIBRARY NAMES dtutils libdtutils_imp PATHS
+  $ENV{LIB}
+  "$ENV{LIB_DIR}/lib"
+  /usr/local/lib
+  /usr/lib
+  c:/msys/local/lib
+  NO_DEFAULT_PATH
+  )
+
+MARK_AS_ADVANCED(DTUTILS_LIBRARY)
+
+IF(DTUTILS_INCLUDE_DIR)
+  MESSAGE(STATUS "dtutils include was found")
+ENDIF(DTUTILS_INCLUDE_DIR)
+IF(DTUTILS_LIBRARY)
+  MESSAGE(STATUS "dtutils lib was found")
+ENDIF(DTUTILS_LIBRARY)
+
+# Copy the results to the output variables.
+IF(DTUTILS_INCLUDE_DIR AND DTUTILS_LIBRARY)
+  SET(DTUTILS_FOUND 1)
+  SET(DTUTILS_LIBRARIES ${DTUTILS_LIBRARY})
+  SET(DTUTILS_INCLUDE_DIRS ${DTUTILS_INCLUDE_DIR})
+ELSE(DTUTILS_INCLUDE_DIR AND DTUTILS_LIBRARY)
+  SET(DTUTILS_FOUND 0)
+  SET(DTUTILS_LIBRARIES)
+  SET(DTUTILS_INCLUDE_DIRS)
+ENDIF(DTUTILS_INCLUDE_DIR AND DTUTILS_LIBRARY)
+
+# Report the results.
+IF(DTUTILS_FOUND)
+   IF (NOT DTUTILS_FIND_QUIETLY)
+      MESSAGE(STATUS "Found DTUTILS: ${DTUTILS_LIBRARY}")
+   ENDIF (NOT DTUTILS_FIND_QUIETLY)
+ELSE(DTUTILS_FOUND)
+  SET(DTUTILS_DIR_MESSAGE "DTUTILS was not found.")
+
+  IF(DTUTILS_FIND_REQUIRED)
+    MESSAGE(FATAL_ERROR "${DTUTILS_DIR_MESSAGE}")
+  ELSE(DTUTILS_FIND_REQUIRED)
+    IF(NOT DTUTILS_FIND_QUIETLY)
+      MESSAGE(STATUS "${DTUTILS_DIR_MESSAGE}")
+    ENDIF(NOT DTUTILS_FIND_QUIETLY)
+    # Avoid cmake complaints if DTUTILS is not found
+    SET(DTUTILS_INCLUDE_DIR "")
+    SET(DTUTILS_LIBRARY "")
+  ENDIF(DTUTILS_FIND_REQUIRED)
+
+ENDIF(DTUTILS_FOUND)

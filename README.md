@@ -1,16 +1,17 @@
 # dthls
 
-hls v5 impl in c. work with dtcurl
+Implement HLS v5.0 parser in C.
 
 
 ## Installation
-- install dtcurl & ffmpeg
+- install dtutils & dtcurl & ffmpeg
 - mkdir build & cd build
 - make
 - sudo make install
 
 ## Deps
 
+- [dtutils](https://github.com/peterfuture/dtutils)
 - [dtcurl](https://github.com/peterfuture/dtcurl)
 - [ffmpeg](https://github.com/FFmpeg/FFmpeg)
 

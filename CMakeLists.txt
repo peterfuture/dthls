@@ -41,8 +41,8 @@ endif()
 
 # target - test
 SET(SRC_TEST test/hls_test.c )
-ADD_EXECUTABLE(test test/hls_test.c)
-TARGET_LINK_LIBRARIES(test dthls dtutils)
+ADD_EXECUTABLE(dthls_test test/hls_test.c)
+TARGET_LINK_LIBRARIES(dthls_test dthls dtutils)
 
 INSTALL(TARGETS dthls
     RUNTIME DESTINATION bin

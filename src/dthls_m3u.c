@@ -863,7 +863,7 @@ static void add_metadata_from_renditions(AVFormatContext *s, struct playlist *pl
     for (i = 0; i < pls->ctx->nb_streams; i++) {
         AVStream *st = s->streams[pls->stream_offset + i];
 
-        if (st->codec->codec_type != type) {
+        if (st->codecpar->codec_type != type) {
             continue;
         }
 
@@ -1150,20 +1150,19 @@ int dtm3u_open(hls_m3u_t *m3u)
                 goto fail;
             }
             st->id = i;
-            avcodec_copy_context(st->codec, pls->ctx->streams[j]->codec);
-
+            avcodec_parameters_copy(st->codecpar, pls->ctx->streams[j]->codecpar);
             if (pls->is_id3_timestamped) { /*  custom timestamps via id3 */
                 avpriv_set_pts_info(st, 33, 1, MPEG_TIME_BASE);
             } else {
                 avpriv_set_pts_info(st, ist->pts_wrap_bits, ist->time_base.num, ist->time_base.den);
             }
-
-            add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_AUDIO);
-            add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_VIDEO);
-            add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_SUBTITLE);
-
-            stream_offset += pls->ctx->nb_streams;
         }
+
+        add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_AUDIO);
+        add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_VIDEO);
+        add_metadata_from_renditions(s, pls, AVMEDIA_TYPE_SUBTITLE);
+
+        stream_offset += pls->ctx->nb_streams;
     }
 
     /*  Create a program for each variant */

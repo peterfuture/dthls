@@ -956,8 +956,7 @@ static int read_data(void *opaque, uint8_t *buf, int buf_size)
     struct segment *seg;
     int ret;
 
-    dt_info(TAG, "Finally Enter read data\n");
-
+    dt_debug(TAG, "Enter read data\n");
     // Try to get valid segment
     if (v->cur_seq_no < v->start_seq_no) {
         av_log(NULL, AV_LOG_WARNING,
@@ -965,7 +964,6 @@ static int read_data(void *opaque, uint8_t *buf, int buf_size)
                v->start_seq_no - v->cur_seq_no);
         v->cur_seq_no = v->start_seq_no;
     }
-    dt_info(TAG, "Cur seg:%d \n", v->cur_seq_no);
 
     // cur seq no exceed max, wait update m3u for live or eof
     if (v->cur_seq_no >= v->start_seq_no + v->n_segments) {
@@ -1012,7 +1010,7 @@ static int read_data(void *opaque, uint8_t *buf, int buf_size)
         v->curl = NULL;
         v->cur_seq_no++;
     }
-    dt_info(TAG, "read:%d end\n", rsize);
+    dt_debug(TAG, "read:%d end\n", rsize);
 
     return rsize;
 }
@@ -1025,21 +1023,22 @@ static void debug_dump_stream(hls_m3u_t *m3u)
     dt_info(TAG, "| stream info\n");
     int i;
     AVStream *pStream;
-    AVCodecContext *pCodec;
+    AVCodecParameters *codecpar;
     char type[32];
     for (i = 0; i < ic->nb_streams; i++) {
         pStream = ic->streams[i];
-        pCodec = pStream->codec;
-        if (pCodec->codec_type == AVMEDIA_TYPE_AUDIO) {
+        codecpar = pStream->codecpar;
+        strcpy(type, "unkown");
+        if (codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
             strcpy(type, "audio");
-        }
-        if (pCodec->codec_type == AVMEDIA_TYPE_VIDEO) {
+        } else if (codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             strcpy(type, "video");
-        }
-        if (pCodec->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+        } else if (codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
             strcpy(type, "subtitle");
+        } else {
+            strcpy(type, "unkown");
         }
-        dt_info(TAG, "| index:%d type:%s \n", i, type);
+        dt_info(TAG, "| index:%d type:%s codec_type:%d \n", i, type, codecpar->codec_type);
     }
 
     dt_info(TAG, "====================================================\n");
@@ -1102,7 +1101,7 @@ int dtm3u_open(hls_m3u_t *m3u)
             continue;
         }
 
-        dt_info(TAG, "Start call avformat_open_input, url: %s\n", pls->segments[0]->url);
+        dt_info(TAG, "call avformat_open_input, url: %s\n", pls->segments[0]->url);
 
         pls->index  = i;
         pls->needed = 1;

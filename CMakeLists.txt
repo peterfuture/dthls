@@ -45,7 +45,7 @@ ADD_EXECUTABLE(dthls_test test/hls_test.c)
 TARGET_LINK_LIBRARIES(dthls_test dthls dtutils)
 
 INSTALL(TARGETS dthls
-    RUNTIME DESTINATION bin
+    #RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     )

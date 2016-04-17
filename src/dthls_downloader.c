@@ -91,7 +91,7 @@ int m3u_downloader_read(void *handle, char *buf, int size, enum ReadFromURLMode 
     while (1) {
         ret = dtcurl_read(handle, buf + wpos, len);
         if (ret > 0) {
-            dt_info(TAG, "read %d bytes \n", ret);
+            dt_debug(TAG, "read %d bytes \n", ret);
             len -= ret;
             wpos += ret;
             if (len <= 0) {

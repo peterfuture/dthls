@@ -460,14 +460,20 @@ static int ensure_playlist(hls_m3u_t *m3u, struct playlist **pls, const char *ur
     return 0;
 }
 
-static void debug_dump_playlist(struct playlist *pls)
+static void debug_dump_playlist(hls_m3u_t *m3u)
 {
-    int i = 0;
-    dt_info(TAG, "uri:%s- segments num:%d \n", pls->url, pls->n_segments);
-    for (i = 0; i < pls->n_segments; i++) {
-        struct segment *seg = pls->segments[i];
-        if (seg) {
-            dt_info(TAG, "index:%d uri:%s \n", i, seg->url);
+    int i = 0, j = 0;
+    if (m3u->n_playlists <= 0) {
+        return;
+    }
+    for (i = 0; i < m3u->n_playlists; i++) {
+        struct playlist *pls = m3u->playlists[i];
+        dt_info(TAG, "[uri:%s] segments num:%d \n", pls->url, pls->n_segments);
+        for (j = 0; j < pls->n_segments; j++) {
+            struct segment *seg = pls->segments[j];
+            if (seg) {
+                dt_debug(TAG, "index:%d uri:%s \n", j, seg->url);
+            }
         }
     }
 }
@@ -496,7 +502,7 @@ static int read_line(char *data, int inlen, char *buf, int maxlen)
     }
 
     if (strlen(buf) > 0) {
-        dt_info(TAG, "read line:%s\n", buf);
+        dt_debug(TAG, "read line:%s\n", buf);
     }
     return off;
 }
@@ -717,7 +723,7 @@ static int m3u_update(hls_m3u_t *m3u)
             }
         }
     }
-
+    debug_dump_playlist(m3u);
     dt_info(TAG, "variant:%d playlists:%d \n", m3u->n_variants, m3u->n_playlists);
 fail:
     return 0;

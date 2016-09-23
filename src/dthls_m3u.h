@@ -152,7 +152,7 @@ typedef struct hls_m3u {
     char *uri;
     char *location;
     int64_t filesize;
-    char *content;
+    char *content;                      // tmp memory used to store m3u8 content
     int64_t duration;
     int n_variants;
     struct variant **variants;

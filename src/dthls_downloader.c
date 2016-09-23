@@ -62,14 +62,6 @@ void *m3u_downloader_open(const char *url)
     if (ret < 0) {
         return NULL;
     }
-    while (1) {
-        dtcurl_get_parameter(curl_handle, KEY_CURL_GET_FILESIZE, &filesize);
-        if (filesize > 0) {
-            break;
-        }
-        usleep(10 * 1000);
-    }
-    dt_info(TAG, "curl open succeed, filesize:%" PRId64 "\n", filesize);
     return curl_handle;
 }
 

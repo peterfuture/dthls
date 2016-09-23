@@ -41,8 +41,8 @@ static int m3u_download(hls_m3u_t *m3u, const char*url)
     }
     int ret = m3u_downloader_get_filesize(m3u->curl, &m3u->filesize);
     dt_info(TAG, "get filesize:%" PRId64 "\n", m3u->filesize);
-    ret = m3u_downloader_get_location(m3u->curl, m3u->location);
-    dt_info(TAG, "get location:%s \n", (!m3u->location) ? m3u->uri : m3u->location);
+    //ret = m3u_downloader_get_location(m3u->curl, &m3u->location);
+    //dt_info(TAG, "get location:%s \n", (!m3u->location) ? m3u->uri : m3u->location);
     m3u->content = (unsigned char *)malloc((int)m3u->filesize);
     if (!m3u->content) {
         dt_info(TAG, "malloc m3u buffer failed \n");
@@ -510,7 +510,7 @@ static int read_line(char *data, int inlen, char *buf, int maxlen)
 #define LINE_MAX_LENGTH 4096
 static int m3u_parse(hls_m3u_t *m3u, const char*url, struct playlist *pls)
 {
-    dt_info(TAG, "Enter parse m3u8 \n");
+    dt_info(TAG, "Enter parse m3u8. url:%s \n", url);
 
     int ret = 0, is_segment = 0, is_variant = 0;
     int64_t duration = 0;
@@ -715,7 +715,7 @@ static int m3u_update(hls_m3u_t *m3u)
     int ret;
     m3u_parse(m3u, m3u->uri, NULL);
     // check variants case
-    if (m3u->n_playlists > 1) {
+    if (m3u->n_playlists >= 1) {
         for (i = 0; i < m3u->n_playlists; i++) {
             struct playlist *pls = m3u->playlists[i];
             if (ret = m3u_parse(m3u, pls->url, pls) < 0) {

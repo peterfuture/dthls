@@ -15,10 +15,6 @@ Implement HLS v5.0 parser in C.
 - [dtcurl](https://github.com/peterfuture/dtcurl)
 - [ffmpeg](https://github.com/FFmpeg/FFmpeg)
 
-## Author
-
-peter_future@outlook.com
-
 # Licence
 
 GPL v3.0
